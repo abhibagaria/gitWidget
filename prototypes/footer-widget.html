@@ -110,9 +110,26 @@
   monthLabels(weeks).forEach(m=>{ const s=document.createElement('span');
     s.textContent=m.label; s.style.gridColumn=(m.col+1); months.appendChild(s); });
 
+  // subtle audio: each contribution you sweep over plays a soft note (silent on empty days)
+  let actx=null, lastBlip=0;
+  const NOTES=[261.63,329.63,392.00,440.00,523.25]; // C E G A C — major pentatonic
+  function audio(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume(); }catch(e){} return actx; }
+  function blip(level){ if(level<1) return; const ctx=audio(); if(!ctx) return;
+    const t=performance.now(); if(t-lastBlip<26) return; lastBlip=t;
+    const n=ctx.currentTime, o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='triangle'; o.frequency.value=NOTES[level]||NOTES[1];
+    const vol=0.022+level*0.011;
+    g.gain.setValueAtTime(0,n); g.gain.linearRampToValueAtTime(vol,n+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001,n+0.18);
+    o.connect(g); g.connect(ctx.destination); o.start(n); o.stop(n+0.2);
+  }
+  addEventListener('pointerdown', audio);
+
   const grid=document.getElementById('grid'), tip=document.getElementById('tip');
   weeks.forEach(week=>week.forEach(day=>{
     const c=document.createElement('div'); c.className='cell l'+day.level;
+    c.addEventListener('mouseenter', ()=> blip(day.level));
     c.addEventListener('mousemove', e=>{ tip.textContent = day.count
         ? `${day.count} contributions · ${fmtDate(day.date)}` : `No contributions · ${fmtDate(day.date)}`;
       tip.style.left=e.clientX+'px'; tip.style.top=e.clientY+'px'; tip.style.opacity=1; });

@@ -10,6 +10,21 @@
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var fmt = function (d) { return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); };
 
+  // subtle audio: each contribution you sweep over plays a soft note (silent on empty days)
+  var actx=null, lastBlip=0, NOTES=[261.63,329.63,392.00,440.00,523.25];
+  function audio(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume(); }catch(e){} return actx; }
+  function blip(level){ if(level<1) return; var ctx=audio(); if(!ctx) return;
+    var t=performance.now(); if(t-lastBlip<26) return; lastBlip=t;
+    var n=ctx.currentTime, o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='triangle'; o.frequency.value=NOTES[level]||NOTES[1];
+    var vol=0.022+level*0.011;
+    g.gain.setValueAtTime(0,n); g.gain.linearRampToValueAtTime(vol,n+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001,n+0.18);
+    o.connect(g); g.connect(ctx.destination); o.start(n); o.stop(n+0.2);
+  }
+  window.addEventListener('pointerdown', audio);
+
   var css = `
   .gitwidget{max-width:680px;font-family:var(--sans,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif)}
   .gitwidget .gw-label{font-family:var(--mono,ui-monospace,Menlo,Consolas,monospace);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#6a6a72);margin-bottom:1.1rem;display:inline-flex;align-items:center;gap:.6rem}
@@ -60,6 +75,7 @@
       s.textContent=m.label; s.style.gridColumn=(m.col+1); months.appendChild(s); });
     weeks.forEach(function(week){ week.forEach(function(day){
       var c=document.createElement('div'); c.className='gw-cell l'+day.level; var date=new Date(day.date);
+      c.addEventListener('mouseenter', function(){ blip(day.level); });
       c.addEventListener('mousemove', function(e){ tip.textContent = day.count
           ? day.count+' contributions · '+fmt(date) : 'No contributions · '+fmt(date);
         tip.style.left=e.clientX+'px'; tip.style.top=e.clientY+'px'; tip.style.opacity=1; });
