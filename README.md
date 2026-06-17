@@ -1,7 +1,12 @@
 # gitWidget
 
-A small, on-brand GitHub contribution widget — a quiet pixel creature strolls your
-last-year grid, themed to match [design.bagaria.me](https://design.bagaria.me).
+A small, on-brand GitHub contribution widget for [design.bagaria.me](https://design.bagaria.me).
+Your real last-year activity, refreshed daily, with a few quiet details:
+
+- **Contribution grid** — themed to inherit the host page's design tokens (`--ink`, `--good`, `--accent`, `--mono`).
+- **Blank-artboard empty state** — days with no activity render as a faint designer dot-grid (a Figma/Sketch canvas), so quiet days read as open canvas, not dead squares. Your commits are the elements placed on it.
+- **A pixel creature** — a tiny sprite strolls the top of the grid, follows your cursor, blinks when idle, and hops on click.
+- **Subtle hover audio** — sweeping the grid plays a soft pentatonic note per active day (higher/louder for busier days, silent on empty days). Audio unlocks on first interaction, per browser policy.
 
 ## How it works
 
@@ -19,24 +24,25 @@ scripts/fetch-contributions.mjs ──► data/contributions.json ──► jsDe
 - [`scripts/fetch-contributions.mjs`](scripts/fetch-contributions.mjs) — fetches the calendar + derives stats.
 - [`.github/workflows/update.yml`](.github/workflows/update.yml) — runs it daily (06:17 UTC) and commits the JSON.
 - [`data/contributions.json`](data/contributions.json) — the generated data (updated by the Action).
-- [`embed.html`](embed.html) — the standalone widget that reads the JSON.
+- [`widget.js`](widget.js) — the embeddable widget (inherits the host page's CSS variables).
+- [`embed.html`](embed.html) — the same widget as a standalone page (for an iframe or local preview).
 
 The Action uses the built-in `GITHUB_TOKEN` (enough for public contributions).
 To include private contribution counts, add a `GH_TOKEN` repo secret (a token with
 `read:user`) and it'll be used automatically.
 
-## Embed it on your site
+## Embed it
 
 Paste this where the widget should appear (e.g. the footer). It inherits your
-page's CSS variables (`--ink`, `--good`, `--accent`, `--mono`…) so it matches
-automatically; the fallbacks cover anywhere those aren't defined.
+page's CSS variables, so it matches automatically; the fallbacks cover anywhere
+those aren't defined.
 
 ```html
 <div id="gitwidget"></div>
 <script src="https://cdn.jsdelivr.net/gh/abhibagaria/gitWidget@main/widget.js" defer></script>
 ```
 
-Or, fully isolated (won't touch your page), drop in an iframe:
+Or, fully isolated (won't touch your page), use an iframe (needs GitHub Pages enabled):
 
 ```html
 <iframe src="https://abhibagaria.github.io/gitWidget/embed.html"
@@ -48,3 +54,5 @@ Or, fully isolated (won't touch your page), drop in an iframe:
 ```bash
 GH_TOKEN=ghp_xxx GH_LOGIN=abhibagaria node scripts/fetch-contributions.mjs
 ```
+
+To update on demand instead of waiting for the daily run: `gh workflow run update.yml`.

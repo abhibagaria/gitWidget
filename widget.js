@@ -39,6 +39,7 @@
   .gitwidget .gw-cell{aspect-ratio:1;border-radius:2px;background:#e9ece9;box-shadow:inset 0 0 0 1px rgba(12,12,14,.05)}
   .gitwidget .gw-cell.l1{background:#bfe3cb}.gitwidget .gw-cell.l2{background:#7fc79b}
   .gitwidget .gw-cell.l3{background:#3f9f68}.gitwidget .gw-cell.l4{background:var(--good,#1a7f4b)}
+  .gitwidget .gw-cell.l0{background:radial-gradient(circle at center,rgba(12,12,14,.17) 0 .9px,transparent 1.3px);box-shadow:none;border-radius:0}
   .gitwidget .gw-cell:hover{box-shadow:inset 0 0 0 1px rgba(12,12,14,.45)}
   .gitwidget .gw-meta{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-top:1rem;font-family:var(--mono,ui-monospace,Menlo,monospace);font-size:.8rem;color:var(--muted,#6a6a72);flex-wrap:wrap}
   .gitwidget .gw-meta b{color:var(--ink,#0c0c0e);font-weight:600}
