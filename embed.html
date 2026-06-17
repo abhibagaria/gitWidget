@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GitHub contribution widget — abhibagaria</title>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&f[]=cabinet-grotesk@800,900&display=swap">
+<style>
+  :root {
+    --bg:#ffffff; --panel:#f4f4f3; --ink:#0c0c0e; --muted:#6a6a72;
+    --line:rgba(12,12,14,.12); --accent:#1f63d6; --accent-ink:#1850b4; --good:#1a7f4b;
+    --sans:"Switzer",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    --display:"Cabinet Grotesk",var(--sans);
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --ease:cubic-bezier(.16,1,.3,1);
+    --g0:#e9ece9; --g1:#bfe3cb; --g2:#7fc79b; --g3:#3f9f68; --g4:#1a7f4b;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+    -webkit-font-smoothing:antialiased; padding:40px; }
+
+  .gh { max-width:680px; margin:0 auto; }
+  .gh .label { font-family:var(--mono); font-size:.74rem; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:1.1rem; display:inline-flex; align-items:center; gap:.6rem; }
+  .gh .label i { width:7px; height:7px; border-radius:50%; background:var(--good);
+    animation:pulse 2.6s var(--ease) infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(26,127,75,.45);} 70%{box-shadow:0 0 0 6px rgba(26,127,75,0);} 100%{box-shadow:0 0 0 0 rgba(26,127,75,0);} }
+
+  .track { position:relative; height:24px; }
+  .creature { position:absolute; left:0; bottom:1px; height:22px; width:auto; color:var(--good);
+    will-change:transform; pointer-events:none; }
+  .creature svg { height:22px; width:auto; display:block; }
+
+  .months { display:grid; grid-template-columns:repeat(53,1fr); font-family:var(--mono);
+    font-size:.6rem; color:var(--muted); margin-bottom:5px; height:.8rem; }
+  .months span { grid-row:1; }
+  .grid { display:grid; grid-template-rows:repeat(7,1fr); grid-auto-flow:column; gap:3px; }
+  .cell { aspect-ratio:1; border-radius:2px; background:var(--g0);
+    box-shadow:inset 0 0 0 1px rgba(12,12,14,.05); }
+  .cell.l1{background:var(--g1);} .cell.l2{background:var(--g2);}
+  .cell.l3{background:var(--g3);} .cell.l4{background:var(--g4);}
+  .cell:hover { box-shadow:inset 0 0 0 1px rgba(12,12,14,.45); }
+
+  .meta { display:flex; align-items:baseline; justify-content:space-between; gap:1rem;
+    margin-top:1rem; font-family:var(--mono); font-size:.8rem; color:var(--muted); flex-wrap:wrap; }
+  .meta b { color:var(--ink); font-weight:600; }
+  .meta .link { color:var(--accent); text-decoration:none; font-weight:500; }
+  .meta .link:hover { color:var(--accent-ink); }
+  .meta .link .arr { display:inline-block; transition:transform .3s var(--ease); }
+  .meta .link:hover .arr { transform:translateX(3px); }
+
+  #tip { position:fixed; pointer-events:none; background:var(--ink); color:#fff; font-family:var(--mono);
+    font-size:.72rem; padding:4px 8px; border-radius:5px; transform:translate(-50%,-145%);
+    white-space:nowrap; opacity:0; transition:opacity .1s; z-index:9; }
+</style>
+</head>
+<body>
+  <div class="gh" id="gh">
+    <div class="label"><i></i> <span>still shipping · last 12 months</span></div>
+    <div class="track"><div class="creature" id="creature" aria-hidden="true"></div></div>
+    <div class="months" id="months"></div>
+    <div class="grid" id="grid"></div>
+    <div class="meta">
+      <span><b id="total">—</b> contributions · current streak <b id="streak">—</b> days · longest <b id="longest">—</b></span>
+      <a class="link" href="https://github.com/abhibagaria" target="_blank" rel="noopener">View on GitHub <span class="arr">→</span></a>
+    </div>
+  </div>
+  <div id="tip"></div>
+
+<script>
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const fmt = d => `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  const SOURCES = [
+    'https://cdn.jsdelivr.net/gh/abhibagaria/gitWidget@main/data/contributions.json',
+    './data/contributions.json',
+  ];
+
+  async function load(){
+    for (const url of SOURCES){
+      try { const r = await fetch(url, {cache:'no-cache'}); if (r.ok) return await r.json(); } catch {}
+    }
+    throw new Error('no data source reachable');
+  }
+
+  function monthLabels(weeks){
+    const out=[]; let last=-1;
+    weeks.forEach((w,i)=>{ const m=new Date(w[0].date).getMonth();
+      if(m!==last){ out.push({col:i,label:MONTHS[m]}); last=m; } });
+    return out.filter((o,i)=> i===0 || o.col-out[i-1].col>=2);
+  }
+
+  function render(data){
+    const weeks = data.weeks || [];
+    document.getElementById('total').textContent   = (data.total ?? 0).toLocaleString();
+    document.getElementById('streak').textContent  = data.currentStreak ?? 0;
+    document.getElementById('longest').textContent = data.longestStreak ?? 0;
+
+    const grid=document.getElementById('grid'), months=document.getElementById('months'), tip=document.getElementById('tip');
+    grid.style.gridTemplateColumns = `repeat(${weeks.length||53},1fr)`;
+    months.style.gridTemplateColumns = `repeat(${weeks.length||53},1fr)`;
+
+    monthLabels(weeks).forEach(m=>{ const s=document.createElement('span');
+      s.textContent=m.label; s.style.gridColumn=(m.col+1); months.appendChild(s); });
+
+    weeks.forEach(week=>week.forEach(day=>{
+      const c=document.createElement('div'); c.className='cell l'+day.level;
+      const date=new Date(day.date);
+      c.addEventListener('mousemove', e=>{ tip.textContent = day.count
+          ? `${day.count} contributions · ${fmt(date)}` : `No contributions · ${fmt(date)}`;
+        tip.style.left=e.clientX+'px'; tip.style.top=e.clientY+'px'; tip.style.opacity=1; });
+      c.addEventListener('mouseleave', ()=> tip.style.opacity=0);
+      grid.appendChild(c);
+    }));
+    initCreature();
+  }
+
+  // ---------- pixel-art creature ----------
+  function initCreature(){
+    const creature=document.getElementById('creature'), gh=document.getElementById('gh'),
+          track=document.querySelector('.track');
+    const BODY=[[1,0],[6,0],[2,1],[3,1],[4,1],[5,1],
+      [1,2],[2,2],[3,2],[4,2],[5,2],[6,2],
+      [0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],
+      [0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],
+      [0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],
+      [1,6],[2,6],[3,6],[4,6],[5,6],[6,6]];
+    const WALK_A=[[1,7],[2,7],[5,7],[6,7]], WALK_B=[[2,7],[3,7],[4,7],[5,7]], STAND=[[1,7],[3,7],[5,7]];
+    const sprite=(legs,eyes)=>{ let r='';
+      const put=(x,y,c)=> r+=`<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"/>`;
+      BODY.forEach(([x,y])=>put(x,y,'currentColor')); legs.forEach(([x,y])=>put(x,y,'currentColor'));
+      if(eyes){ put(2,3,'#fff'); put(5,3,'#fff'); }
+      return `<svg viewBox="-1 0 11 8" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">${r}</svg>`; };
+
+    let x=40,tx=40,hop=0,hv=0,dir=1,moving=false,fr=0,lf=0,eyes=true,nb=2000,bu=0,nw=3000,cur=false,key='';
+    const SPW=25, tw=()=>track.clientWidth-SPW;
+    gh.addEventListener('mousemove', e=>{ const r=track.getBoundingClientRect();
+      tx=Math.max(0,Math.min(tw(), e.clientX-r.left-SPW/2)); cur=true; });
+    gh.addEventListener('mouseleave', ()=> cur=false);
+    gh.addEventListener('click', ()=>{ if(hop===0){ hv=4.4; eyes=true; } });
+    function tick(now){
+      if(!cur && now>nw){ tx=Math.random()*tw(); nw=now+2200+Math.random()*3500; }
+      const dx=tx-x; if(Math.abs(dx)>0.6){ x+=dx*0.08; moving=true; dir=dx<0?-1:1; } else moving=false;
+      if(hop>0||hv>0){ hop+=hv; hv-=0.45; if(hop<0){hop=0;hv=0;} }
+      if(moving && now-lf>120){ fr^=1; lf=now; eyes=true; }
+      if(!moving){ if(now>nb){ bu=now+150; nb=now+1800+Math.random()*2600; } eyes=now>bu; }
+      const legs=moving?(fr?WALK_B:WALK_A):STAND;
+      const k=(legs===WALK_B?'b':legs===WALK_A?'a':'s')+(eyes?'1':'0');
+      if(k!==key){ creature.innerHTML=sprite(legs,eyes); key=k; }
+      creature.style.transform=`translateX(${x}px) translateY(${-hop}px) scaleX(${dir})`;
+      requestAnimationFrame(tick);
+    }
+    creature.innerHTML=sprite(STAND,true); requestAnimationFrame(tick);
+  }
+
+  load().then(render).catch(err=>{
+    document.getElementById('total').textContent='—';
+    console.error(err);
+  });
+</script>
+</body>
+</html>

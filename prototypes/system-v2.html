@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>A Year of Building — gitWidget v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:#070b10; color:#e6edf3;
+    font-family:'VT323',monospace; display:flex; align-items:center;
+    justify-content:center; padding:28px; }
+  .card { background:var(--bg,#0a0e14); border:3px solid #1f2630; padding:22px 24px 18px;
+    box-shadow:8px 8px 0 #04060a; width:min(840px,100%); transition:background .4s; }
+  h1 { font-family:'Press Start 2P'; font-size:14px; margin:0 0 8px; color:#e6edf3; }
+  .lead { font-size:18px; color:#8b949e; margin:0 0 4px; max-width:60ch; }
+  .lead b { color:var(--accent,#39d353); }
+  .answer { font-size:18px; color:#c9d1d9; min-height:24px; margin:6px 0 2px; }
+  .answer b { color:var(--accent,#39d353); }
+  .stage { position:relative; }
+  canvas { display:block; width:100%; height:auto; }
+  .bar { display:flex; gap:16px; align-items:center; margin-top:12px; flex-wrap:wrap; }
+  .group { display:flex; gap:6px; align-items:center; }
+  .group small { font-size:14px; color:#6e7681; margin-right:2px; }
+  button { font-family:'VT323',monospace; font-size:16px; cursor:pointer;
+    background:#0d1117; color:#c9d1d9; border:2px solid #30363d; padding:3px 11px; }
+  button[aria-pressed="true"], button.on { border-color:var(--accent,#39d353); color:var(--accent,#39d353); }
+  button:focus-visible { outline:2px solid #58a6ff; outline-offset:2px; }
+  button:active { transform:translate(1px,1px); }
+  .right { margin-left:auto; display:flex; gap:6px; }
+
+  /* screen-reader-only, but focusable; revealed when focused or toggled */
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);
+        clip-path:inset(50%); white-space:nowrap; }
+  .data.show { position:static; width:auto; height:auto; clip:auto; clip-path:none;
+        white-space:normal; margin-top:14px; overflow:auto; }
+  table { border-collapse:collapse; font-size:13px; color:#c9d1d9; }
+  caption { text-align:left; color:#8b949e; font-size:16px; padding-bottom:6px; }
+  th { font-weight:normal; color:#6e7681; padding:2px 5px; text-align:right; white-space:nowrap; }
+  td { width:16px; height:16px; padding:0; text-align:center; }
+  td b { display:block; width:14px; height:14px; margin:1px auto; border:1px solid #00000033; }
+  td:focus-visible { outline:2px solid #58a6ff; outline-offset:0; }
+  #tip { position:fixed; pointer-events:none; background:#e6edf3; color:#0a0e14;
+    font-size:15px; padding:3px 8px; transform:translate(-50%,-135%); white-space:nowrap;
+    opacity:0; transition:opacity .08s; z-index:9; font-family:'VT323',monospace; }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <h1>A year of building</h1>
+    <p class="lead" id="lead">&nbsp;</p>
+    <p class="answer" id="answer">&nbsp;</p>
+
+    <div class="stage">
+      <canvas id="c" role="img" aria-describedby="srsummary"></canvas>
+    </div>
+
+    <div class="bar">
+      <div class="group" role="group" aria-label="Choose a question">
+        <small>asking</small>
+        <button data-lens="heatmap" aria-pressed="true">how consistent?</button>
+        <button data-lens="skyline" aria-pressed="false">biggest pushes?</button>
+        <button data-lens="pulse" aria-pressed="false">momentum?</button>
+      </div>
+      <div class="group" role="group" aria-label="Theme">
+        <small>theme</small>
+        <button data-theme="github" class="on">green</button>
+        <button data-theme="synth">synth</button>
+        <button data-theme="amber">amber</button>
+      </div>
+      <div class="right">
+        <button id="motionBtn" aria-pressed="true" title="Toggle animation">motion: on</button>
+        <button id="tableBtn" aria-pressed="false" aria-controls="data" title="Show the data as a table">⊞ data</button>
+      </div>
+    </div>
+
+    <!-- Accessible equivalent: same engine, semantic projection. SR-readable always; visible on toggle. -->
+    <div class="sr data" id="data">
+      <p id="srsummary"></p>
+      <table role="grid" id="grid" aria-label="Contribution calendar. Use arrow keys to move between days.">
+        <caption id="tcap"></caption>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="tip" role="status" aria-live="off"></div>
+
+<script src="_data.js"></script>
+<script>
+  // ---------- shared design tokens ----------
+  const THEMES = {
+    github: { bg:'#0a0e14', card:'#0a0e14', axis:'#2a313c', accent:'#39d353',
+      lv:[[22,27,34],[14,68,41],[0,109,50],[38,166,65],[57,211,83]] },
+    synth:  { bg:'#120c22', card:'#140c26', axis:'#3a2d5c', accent:'#ff7edb',
+      lv:[[36,27,58],[91,42,134],[157,78,221],[224,71,158],[255,126,219]] },
+    amber:  { bg:'#0a0703', card:'#0c0804', axis:'#3a2a0e', accent:'#ffd479',
+      lv:[[26,18,6],[90,61,8],[185,119,14],[242,168,59],[255,212,121]] },
+  };
+
+  // ---------- one data engine ----------
+  const { weeks } = genContributions();
+  const records = [];
+  weeks.forEach((week, wi) => week.forEach((day, di) => records.push({ ...day, wi, di })));
+  const N = records.length;
+
+  // ---------- derived insight layer (computed, then shown PASSIVELY) ----------
+  const total = records.reduce((s,r)=>s+r.count, 0);
+  // longest streak
+  let streak={len:0}, run=0, runStart=0;
+  records.forEach((r,i)=>{ if(r.count>0){ if(run===0) runStart=i; run++; if(run>streak.len) streak={len:run, s:records[runStart].date, e:r.date}; } else run=0; });
+  // busiest weekday
+  const byDow=[0,0,0,0,0,0,0]; records.forEach(r=>byDow[r.di]+=r.count);
+  const topDow = byDow.indexOf(Math.max(...byDow));
+  // biggest week
+  const wkSums = weeks.map(w=>w.reduce((s,d)=>s+d.count,0));
+  const bigWk = wkSums.indexOf(Math.max(...wkSums));
+  const bigMonth = MONTHS[weeks[bigWk][0].date.getMonth()];
+  // trajectory: last 12 wks vs first 12 wks
+  const sum=(a,b)=>wkSums.slice(a,b).reduce((s,v)=>s+v,0);
+  const first12=sum(0,12)||1, last12=sum(41,53);
+  const traj=(last12/first12);
+
+  document.getElementById('lead').innerHTML =
+    `<b>${total}</b> contributions last year — but the shape matters more than the count.`;
+
+  const ANSWERS = {
+    heatmap: `<b>How consistent?</b> &nbsp;Longest unbroken streak: <b>${streak.len} days</b> (${MONTHS[streak.s.getMonth()]}–${MONTHS[streak.e.getMonth()]}).`,
+    skyline: `<b>Biggest pushes?</b> &nbsp;Heaviest single week: <b>${wkSums[bigWk]} contributions</b> in ${bigMonth}.`,
+    pulse:   `<b>Momentum?</b> &nbsp;Finished the year <b>${traj.toFixed(1)}×</b> busier than it started — building toward something.`,
+  };
+
+  // ---------- canvas + cells ----------
+  const W=800, H=300, dpr=Math.min(window.devicePixelRatio||1, 2);
+  const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.aspectRatio=W+'/'+H; ctx.scale(dpr,dpr);
+
+  let theme=THEMES.github, lens='heatmap', highlight=-1;
+  const reduceQuery = matchMedia('(prefers-reduced-motion: reduce)');
+  let motion = !reduceQuery.matches;
+
+  const STEP=13, x0=(W-53*STEP)/2+1.5, yTop=66, skyBase=254, pulseBase=188;
+  // redundant encoding: level -> size AS WELL AS color (so color isn't load-bearing)
+  const SIZE=[4, 6, 7.5, 9, 10.5];
+
+  const cells = records.map((rec,i)=>({
+    rec, i,
+    x:W/2, y:H/2, w:2, h:2, a:0, c:[20,20,20],
+    fx:W/2, fy:H/2, fw:2, fh:2, fa:0, fc:[20,20,20],
+    tx:0, ty:0, tw:2, th:2, ta:0, tc:[20,20,20],
+    delay:(i/(N-1))*240, t0:0, dur:1,
+  }));
+  const streakSet = new Set();
+  { let r2=0,st=0; records.forEach((r,i)=>{ if(r.count>0){ if(r2===0)st=i; r2++; } else r2=0;
+      if(r2===streak.len){ for(let k=st;k<=i;k++) streakSet.add(k); } }); }
+
+  function col(l){ return theme.lv[l]; }
+
+  // ---------- lenses = pure (record) -> geometry. Each answers a different question. ----------
+  function layout() {
+    if (lens==='heatmap') {
+      cells.forEach(c=>{ const s=SIZE[c.rec.level], off=(10-s)/2;
+        c.tx=x0+c.rec.wi*STEP+off; c.ty=yTop+c.rec.di*STEP+off;
+        c.tw=s; c.th=s; c.ta=c.rec.level?1:0.6; c.tc=col(c.rec.level); });
+    } else if (lens==='skyline') {
+      weeks.forEach((week,wi)=>{ let stack=0;
+        for(let di=0; di<7; di++){ const c=cells[wi*7+di];
+          if(c.rec.level>0){ c.tw=11; c.th=8; c.tx=x0+wi*STEP-1; c.ty=skyBase-(stack+1)*9; c.ta=1; c.tc=col(c.rec.level); stack++; }
+          else { c.tw=3; c.th=3; c.tx=x0+wi*STEP+3; c.ty=skyBase-2; c.ta=0; c.tc=col(0); } } });
+    } else {
+      const left=26, span=W-left*2;
+      cells.forEach(c=>{ const idx=c.rec.wi*7+c.rec.di, lit=c.rec.level>0;
+        c.tx=left+(idx/(N-1))*span; c.ty=pulseBase-(c.rec.level/4)*84;
+        c.tw=c.th=lit?5:3; c.ta=lit?1:0.25; c.tc=col(c.rec.level); });
+    }
+  }
+
+  function applyLayout(animate) {
+    layout();
+    const now=performance.now();
+    cells.forEach(c=>{ c.fx=c.x; c.fy=c.y; c.fw=c.w; c.fh=c.h; c.fa=c.a; c.fc=c.c.slice();
+      if(animate && motion){ c.t0=now+c.delay; c.dur=620; } else { c.t0=now-2; c.dur=1; } });
+  }
+
+  const smooth=t=>t*t*(3-2*t), lerp=(a,b,k)=>a+(b-a)*k;
+  function frame() {
+    const now=performance.now();
+    ctx.fillStyle=theme.bg; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle=theme.axis; ctx.lineWidth=1;
+    if(lens==='skyline'){ ctx.beginPath(); ctx.moveTo(x0-6,skyBase+.5); ctx.lineTo(x0+53*STEP,skyBase+.5); ctx.stroke(); }
+    if(lens==='pulse'){ ctx.beginPath(); ctx.moveTo(26,pulseBase+.5); ctx.lineTo(W-26,pulseBase+.5); ctx.stroke(); }
+    if(lens==='heatmap'){ ctx.fillStyle=theme.axis; ctx.font='12px monospace';
+      monthLabels(weeks).forEach(m=>ctx.fillText(m.label, x0+m.col*STEP, yTop-9)); }
+
+    cells.forEach(c=>{ const t=Math.max(0,Math.min(1,(now-c.t0)/c.dur)), e=smooth(t);
+      c.x=lerp(c.fx,c.tx,e); c.y=lerp(c.fy,c.ty,e); c.w=lerp(c.fw,c.tw,e); c.h=lerp(c.fh,c.th,e);
+      c.a=lerp(c.fa,c.ta,e); c.c=[lerp(c.fc[0],c.tc[0],e),lerp(c.fc[1],c.tc[1],e),lerp(c.fc[2],c.tc[2],e)]; });
+
+    if(lens==='pulse'){ ctx.strokeStyle=theme.accent; ctx.globalAlpha=.45; ctx.lineWidth=1.5; ctx.beginPath();
+      cells.forEach((c,i)=>{ const px=c.x+c.w/2, py=c.y+c.h/2; i?ctx.lineTo(px,py):ctx.moveTo(px,py); }); ctx.stroke(); ctx.globalAlpha=1; }
+
+    cells.forEach(c=>{ ctx.globalAlpha=c.a;
+      ctx.fillStyle=`rgb(${c.c[0]|0},${c.c[1]|0},${c.c[2]|0})`; ctx.fillRect(c.x,c.y,c.w,c.h);
+      if(streakSet.has(c.i)){ ctx.globalAlpha=Math.min(1,c.a+0.2); ctx.strokeStyle=theme.accent; ctx.lineWidth=1;
+        ctx.strokeRect(c.x-1.5,c.y-1.5,c.w+3,c.h+3); } });
+    if(highlight>=0){ const c=cells[highlight]; ctx.globalAlpha=1; ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
+      ctx.strokeRect(c.x-2,c.y-2,c.w+4,c.h+4); }
+    ctx.globalAlpha=1;
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- reveal-on-interaction (mouse + touch), plus the passive answer above ----------
+  const tip=document.getElementById('tip');
+  function showTipFor(idx, clientX, clientY){
+    if(idx<0){ tip.style.opacity=0; return; }
+    const r=records[idx];
+    tip.textContent = r.count ? `${r.count} contributions · ${fmtDate(r.date)}` : `quiet day · ${fmtDate(r.date)}`;
+    tip.style.left=clientX+'px'; tip.style.top=clientY+'px'; tip.style.opacity=1;
+  }
+  function pick(mx,my){ let best=-1, bd=14; cells.forEach(c=>{ if(c.a<0.3) return;
+      const d=Math.hypot(mx-(c.x+c.w/2), my-(c.y+c.h/2)); if(d<bd){ bd=d; best=c.i; } }); return best; }
+  function evToLogical(e){ const r=cv.getBoundingClientRect(); const p=e.touches?e.touches[0]:e;
+    return { mx:(p.clientX-r.left)*(W/r.width), my:(p.clientY-r.top)*(H/r.height), cx:p.clientX, cy:p.clientY }; }
+  cv.addEventListener('mousemove', e=>{ const {mx,my,cx,cy}=evToLogical(e); highlight=pick(mx,my); showTipFor(highlight,cx,cy); });
+  cv.addEventListener('mouseleave', ()=>{ highlight=-1; tip.style.opacity=0; });
+  cv.addEventListener('touchstart', e=>{ const {mx,my,cx,cy}=evToLogical(e); highlight=pick(mx,my); showTipFor(highlight,cx,cy); }, {passive:true});
+  cv.addEventListener('touchmove', e=>{ const {mx,my,cx,cy}=evToLogical(e); highlight=pick(mx,my); showTipFor(highlight,cx,cy); }, {passive:true});
+
+  // ---------- accessible projection: the SAME records as a keyboard grid + SR summary ----------
+  const srsummary=document.getElementById('srsummary');
+  srsummary.textContent =
+    `A year of GitHub contributions: ${total} total. Most active on ${DOW[topDow]}s. `
+    + `Longest streak ${streak.len} days. Heaviest week ${wkSums[bigWk]} in ${bigMonth}. `
+    + `Finished about ${traj.toFixed(1)} times busier than it started.`;
+  document.getElementById('tcap').textContent = `${total} contributions, ${weeks.length} weeks. Each cell is one day.`;
+
+  const thead=document.getElementById('thead'), tbody=document.getElementById('tbody');
+  thead.innerHTML = '<th scope="col">week</th>' + DOW.map(d=>`<th scope="col">${d}</th>`).join('');
+  weeks.forEach((week,wi)=>{
+    const tr=document.createElement('tr');
+    const rh=document.createElement('th'); rh.scope='row'; rh.textContent=`${MONTHS[week[0].date.getMonth()]} ${week[0].date.getDate()}`;
+    tr.appendChild(rh);
+    week.forEach((day,di)=>{ const td=document.createElement('td'); const i=wi*7+di;
+      td.setAttribute('role','gridcell'); td.tabIndex = (i===0?0:-1); td.dataset.i=i;
+      td.setAttribute('aria-label', day.count ? `${day.count} contributions, ${fmtDate(day.date)}` : `No contributions, ${fmtDate(day.date)}`);
+      const b=document.createElement('b'); const [r,g,bl]=THEMES.github.lv[day.level];
+      b.style.background=`rgb(${r},${g},${bl})`; td.appendChild(b);
+      td.addEventListener('focus', ()=>{ highlight=i; const r2=cv.getBoundingClientRect(); const c=cells[i];
+        showTipFor(i, r2.left + (c.x+c.w/2)*(r2.width/W), r2.top + (c.y)*(r2.height/H)); });
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  // roving-tabindex arrow navigation across the 53x7 grid
+  document.getElementById('grid').addEventListener('keydown', e=>{
+    const cur=document.activeElement; if(cur.tagName!=='TD') return;
+    let i=+cur.dataset.i, ni=i;
+    if(e.key==='ArrowRight') ni=Math.min(N-1,i+1);
+    else if(e.key==='ArrowLeft') ni=Math.max(0,i-1);
+    else if(e.key==='ArrowDown') ni=Math.min(N-1,i+7);
+    else if(e.key==='ArrowUp') ni=Math.max(0,i-7);
+    else if(e.key==='Home') ni=i-(i%7); else if(e.key==='End') ni=i-(i%7)+6;
+    else return;
+    e.preventDefault(); cur.tabIndex=-1;
+    const nx=tbody.querySelector(`[data-i="${ni}"]`); if(nx){ nx.tabIndex=0; nx.focus(); }
+  });
+
+  // ---------- controls ----------
+  function setLens(name){ lens=name; applyLayout(true);
+    document.getElementById('answer').innerHTML=ANSWERS[name];
+    cv.setAttribute('aria-label', srsummary.textContent + ' Current view: ' + name + '.');
+    document.querySelectorAll('[data-lens]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.lens===name))); }
+  document.querySelectorAll('[data-lens]').forEach(b=> b.onclick=()=>setLens(b.dataset.lens));
+
+  function setTheme(name){ theme=THEMES[name];
+    document.documentElement.style.setProperty('--bg', theme.card);
+    document.documentElement.style.setProperty('--accent', theme.accent);
+    document.querySelectorAll('[data-theme]').forEach(b=>b.classList.toggle('on', b.dataset.theme===name));
+    applyLayout(true); }
+  document.querySelectorAll('[data-theme]').forEach(b=> b.onclick=()=>setTheme(b.dataset.theme));
+
+  const motionBtn=document.getElementById('motionBtn');
+  motionBtn.onclick=()=>{ motion=!motion; motionBtn.setAttribute('aria-pressed',String(motion));
+    motionBtn.textContent='motion: '+(motion?'on':'off'); };
+  reduceQuery.addEventListener?.('change', e=>{ motion=!e.matches; motionBtn.setAttribute('aria-pressed',String(motion)); motionBtn.textContent='motion: '+(motion?'on':'off'); });
+
+  const tableBtn=document.getElementById('tableBtn'), dataEl=document.getElementById('data');
+  tableBtn.onclick=()=>{ const on=dataEl.classList.toggle('show'); tableBtn.setAttribute('aria-pressed',String(on)); };
+  dataEl.addEventListener('focusin', ()=>dataEl.classList.add('show')); // reveal for sighted keyboard users
+
+  // ---------- go ----------
+  setLens('heatmap');           // sets passive answer immediately (zero-click message lands)
+  applyLayout(true);            // wave-in entrance (snaps if reduced motion)
+  frame();
+</script>
+</body>
+</html>

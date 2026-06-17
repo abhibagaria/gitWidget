@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Footer contribution widget — bagaria.me theme</title>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&f[]=cabinet-grotesk@800,900&display=swap">
+<style>
+  :root {
+    --bg:#ffffff; --panel:#f4f4f3; --ink:#0c0c0e; --muted:#6a6a72;
+    --line:rgba(12,12,14,.12); --accent:#1f63d6; --accent-ink:#1850b4;
+    --accent-soft:rgba(31,99,214,.10); --good:#1a7f4b;
+    --sans:"Switzer",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    --display:"Cabinet Grotesk",var(--sans);
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --ease:cubic-bezier(.16,1,.3,1);
+    /* contribution ramp = tints of your --good green */
+    --g0:#e9ece9; --g1:#bfe3cb; --g2:#7fc79b; --g3:#3f9f68; --g4:#1a7f4b;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+    -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1180px; margin:0 auto; padding:0 clamp(1.2rem,5vw,2.5rem); }
+
+  /* --- mock of your real footer, so the widget is shown in situ --- */
+  footer.foot { border-top:1px solid var(--ink); padding-block:clamp(3.5rem,9vh,7rem); }
+  .cta { font-family:var(--display); font-weight:900; color:var(--ink);
+    font-size:clamp(2.3rem,1.4rem + 4.6vw,4.6rem); letter-spacing:-.04em; line-height:.98; margin:0 0 1.6rem; }
+  .ways { display:flex; gap:1.6rem; flex-wrap:wrap; font-family:var(--sans); font-weight:500;
+    font-size:1.02rem; margin:0 0 3.2rem; }
+  .ways a { color:var(--ink); text-decoration:none; }
+  .ways a:hover { color:var(--accent-ink); }
+
+  /* ---------------- the widget ---------------- */
+  .gh { max-width:680px; }
+  .gh .label { font-family:var(--mono); font-size:.74rem; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:1.1rem; display:inline-flex; align-items:center; gap:.6rem; }
+  .gh .label i { width:7px; height:7px; border-radius:50%; background:var(--good);
+    box-shadow:0 0 0 0 rgba(26,127,75,.5); animation:pulse 2.6s var(--ease) infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(26,127,75,.45);} 70%{box-shadow:0 0 0 6px rgba(26,127,75,0);} 100%{box-shadow:0 0 0 0 rgba(26,127,75,0);} }
+
+  .months { display:grid; grid-template-columns:repeat(53,1fr); font-family:var(--mono);
+    font-size:.6rem; color:var(--muted); margin-bottom:5px; height:.8rem; }
+  .months span { grid-row:1; }
+  .grid { display:grid; grid-template-columns:repeat(53,1fr); grid-template-rows:repeat(7,1fr);
+    grid-auto-flow:column; gap:3px; }
+  .cell { aspect-ratio:1; border-radius:2px; background:var(--g0);
+    box-shadow:inset 0 0 0 1px rgba(12,12,14,.05); }
+  .cell.l1{background:var(--g1);} .cell.l2{background:var(--g2);}
+  .cell.l3{background:var(--g3);} .cell.l4{background:var(--g4);}
+  .cell:hover { box-shadow:inset 0 0 0 1px rgba(12,12,14,.45); }
+
+  /* pixel-art creature track (sits just above the grid) */
+  .track { position:relative; height:24px; }
+  .creature { position:absolute; left:0; bottom:1px; height:22px; width:auto;
+    color:var(--good); will-change:transform; pointer-events:none; }
+  .creature svg { height:22px; width:auto; display:block; }
+
+  .meta { display:flex; align-items:baseline; justify-content:space-between; gap:1rem;
+    margin-top:1rem; font-family:var(--mono); font-size:.8rem; color:var(--muted); flex-wrap:wrap; }
+  .meta b { color:var(--ink); font-weight:600; }
+  .meta .link { color:var(--accent); text-decoration:none; font-weight:500; }
+  .meta .link:hover { color:var(--accent-ink); }
+  .meta .link .arr { transition:transform .3s var(--ease); display:inline-block; }
+  .meta .link:hover .arr { transform:translateX(3px); }
+
+  #tip { position:fixed; pointer-events:none; background:var(--ink); color:#fff;
+    font-family:var(--mono); font-size:.72rem; padding:4px 8px; border-radius:5px;
+    transform:translate(-50%,-145%); white-space:nowrap; opacity:0; transition:opacity .1s; z-index:9; }
+</style>
+</head>
+<body>
+  <footer class="foot">
+    <div class="wrap">
+      <h2 class="cta">Let's talk about<br>the problem worth solving.</h2>
+      <div class="ways">
+        <a href="#">abhibagaria@gmail.com</a>
+        <a href="#">LinkedIn →</a>
+        <a href="#">About →</a>
+      </div>
+
+      <!-- contribution widget -->
+      <div class="gh">
+        <div class="label"><i></i> <span id="labeltext">still shipping · last 12 months</span></div>
+        <div class="track"><div class="creature" id="creature" aria-hidden="true"></div></div>
+        <div class="months" id="months"></div>
+        <div class="grid" id="grid"></div>
+        <div class="meta">
+          <span><b id="total">0</b> contributions · current streak <b id="streak">0</b> days · longest <b id="longest">0</b></span>
+          <a class="link" href="https://github.com/abhibagaria" target="_blank" rel="noopener">View on GitHub <span class="arr">→</span></a>
+        </div>
+      </div>
+    </div>
+  </footer>
+  <div id="tip"></div>
+
+<script src="_data.js"></script>
+<script>
+  const { weeks } = genContributions();
+  const days = []; weeks.forEach(w=>w.forEach(d=>days.push(d)));
+
+  const total = days.reduce((s,d)=>s+d.count,0);
+  let cur=0; for(let i=days.length-1;i>=0&&days[i].count>0;i--) cur++;
+  let run=0,longest=0; days.forEach(d=>{ if(d.count>0){run++;longest=Math.max(longest,run);} else run=0; });
+  document.getElementById('total').textContent = total.toLocaleString();
+  document.getElementById('streak').textContent = cur;
+  document.getElementById('longest').textContent = longest;
+
+  const months = document.getElementById('months');
+  monthLabels(weeks).forEach(m=>{ const s=document.createElement('span');
+    s.textContent=m.label; s.style.gridColumn=(m.col+1); months.appendChild(s); });
+
+  const grid=document.getElementById('grid'), tip=document.getElementById('tip');
+  weeks.forEach(week=>week.forEach(day=>{
+    const c=document.createElement('div'); c.className='cell l'+day.level;
+    c.addEventListener('mousemove', e=>{ tip.textContent = day.count
+        ? `${day.count} contributions · ${fmtDate(day.date)}` : `No contributions · ${fmtDate(day.date)}`;
+      tip.style.left=e.clientX+'px'; tip.style.top=e.clientY+'px'; tip.style.opacity=1; });
+    c.addEventListener('mouseleave', ()=> tip.style.opacity=0);
+    grid.appendChild(c);
+  }));
+
+  // ---------- pixel-art creature ----------
+  const creature = document.getElementById('creature');
+  const gh = document.querySelector('.gh'), track = document.querySelector('.track');
+
+  const BODY=[[1,0],[6,0],[2,1],[3,1],[4,1],[5,1],
+    [1,2],[2,2],[3,2],[4,2],[5,2],[6,2],
+    [0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],
+    [0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],
+    [0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],
+    [1,6],[2,6],[3,6],[4,6],[5,6],[6,6]];
+  const WALK_A=[[1,7],[2,7],[5,7],[6,7]], WALK_B=[[2,7],[3,7],[4,7],[5,7]], STAND=[[1,7],[3,7],[5,7]];
+  function sprite(legs, eyesOpen){
+    let r='';
+    const put=(x,y,c)=> r+=`<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"/>`;
+    BODY.forEach(([x,y])=>put(x,y,'currentColor'));
+    legs.forEach(([x,y])=>put(x,y,'currentColor'));
+    if(eyesOpen){ put(2,3,'#fff'); put(5,3,'#fff'); }
+    return `<svg viewBox="-1 0 11 8" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">${r}</svg>`;
+  }
+
+  let x=40, targetX=40, hop=0, hopV=0, dir=1, moving=false, frame=0,
+      lastFrame=0, eyes=true, nextBlink=2000, blinkUntil=0, nextWander=3000,
+      haveCursor=false, lastKey='';
+  const SPW=25;
+  const trackW = () => track.clientWidth - SPW;
+
+  gh.addEventListener('mousemove', e=>{
+    const r=track.getBoundingClientRect();
+    targetX=Math.max(0, Math.min(trackW(), e.clientX - r.left - SPW/2));
+    haveCursor=true;
+  });
+  gh.addEventListener('mouseleave', ()=> haveCursor=false);
+  gh.addEventListener('click', ()=>{ if(hop===0){ hopV=4.4; eyes=true; } });
+
+  function tick(now){
+    if(!haveCursor && now>nextWander){ targetX=Math.random()*trackW(); nextWander=now+2200+Math.random()*3500; }
+    const dx=targetX-x;
+    if(Math.abs(dx)>0.6){ x+=dx*0.08; moving=true; dir=dx<0?-1:1; } else moving=false;
+    if(hop>0||hopV>0){ hop+=hopV; hopV-=0.45; if(hop<0){hop=0;hopV=0;} }
+    if(moving && now-lastFrame>120){ frame^=1; lastFrame=now; eyes=true; }
+    if(!moving){ if(now>nextBlink){ blinkUntil=now+150; nextBlink=now+1800+Math.random()*2600; } eyes=now>blinkUntil; }
+    const legs = moving ? (frame?WALK_B:WALK_A) : STAND;
+    const key = legs===WALK_B?'b':legs===WALK_A?'a':'s';
+    const fullKey = key+(eyes?'1':'0');
+    if(fullKey!==lastKey){ creature.innerHTML=sprite(legs,eyes); lastKey=fullKey; }
+    creature.style.transform=`translateX(${x}px) translateY(${-hop}px) scaleX(${dir})`;
+    requestAnimationFrame(tick);
+  }
+  creature.innerHTML=sprite(STAND,true);
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>
