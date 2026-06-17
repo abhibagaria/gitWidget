@@ -28,8 +28,7 @@
   var css = `
   .gitwidget{max-width:680px;font-family:var(--sans,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif)}
   .gitwidget .gw-label{font-family:var(--mono,ui-monospace,Menlo,Consolas,monospace);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#6a6a72);margin-bottom:1.1rem;display:inline-flex;align-items:center;gap:.6rem}
-  .gitwidget .gw-label i{width:7px;height:7px;border-radius:50%;background:var(--good,#1a7f4b);animation:gwpulse 2.6s cubic-bezier(.16,1,.3,1) infinite}
-  @keyframes gwpulse{0%{box-shadow:0 0 0 0 rgba(26,127,75,.45)}70%{box-shadow:0 0 0 6px rgba(26,127,75,0)}100%{box-shadow:0 0 0 0 rgba(26,127,75,0)}}
+  .gitwidget .gw-label i{width:7px;height:7px;border-radius:50%;background:var(--good,#1a7f4b)}
   .gitwidget .gw-track{position:relative;height:24px}
   .gitwidget .gw-creature{position:absolute;left:0;bottom:1px;height:22px;color:var(--good,#1a7f4b);will-change:transform;pointer-events:none}
   .gitwidget .gw-creature svg{height:22px;width:auto;display:block}
