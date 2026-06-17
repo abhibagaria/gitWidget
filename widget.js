@@ -28,7 +28,6 @@
   var css = `
   .gitwidget{max-width:680px;font-family:var(--sans,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif)}
   .gitwidget .gw-label{font-family:var(--mono,ui-monospace,Menlo,Consolas,monospace);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#6a6a72);margin-bottom:1.1rem;display:inline-flex;align-items:center;gap:.6rem}
-  .gitwidget .gw-label i{width:7px;height:7px;border-radius:50%;background:var(--good,#1a7f4b)}
   .gitwidget .gw-track{position:relative;height:24px}
   .gitwidget .gw-creature{position:absolute;left:0;bottom:1px;height:22px;color:var(--good,#1a7f4b);will-change:transform;pointer-events:none}
   .gitwidget .gw-creature svg{height:22px;width:auto;display:block}
@@ -51,7 +50,7 @@
 
   MOUNT.className = 'gitwidget';
   MOUNT.innerHTML =
-    '<div class="gw-label"><i></i> <span>still shipping · last 12 months</span></div>' +
+    '<div class="gw-label"><span>still shipping · last 12 months</span></div>' +
     '<div class="gw-track"><div class="gw-creature" aria-hidden="true"></div></div>' +
     '<div class="gw-months"></div><div class="gw-grid"></div>' +
     '<div class="gw-meta"><span><b class="gw-total">—</b> contributions · current streak <b class="gw-streak">—</b> days · longest <b class="gw-long">—</b></span>' +
