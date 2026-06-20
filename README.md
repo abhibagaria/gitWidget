@@ -22,10 +22,10 @@ scripts/fetch-contributions.mjs ──► data/contributions.json ──► jsDe
 ```
 
 - [`scripts/fetch-contributions.mjs`](scripts/fetch-contributions.mjs) — fetches the calendar + derives stats.
-- [`.github/workflows/update.yml`](.github/workflows/update.yml) — runs it daily (06:17 UTC) and commits the JSON.
+- [`.github/workflows/update.yml`](.github/workflows/update.yml) — runs it daily (03:30 UTC = 09:00 IST) and commits the JSON.
 - [`data/contributions.json`](data/contributions.json) — the generated data (updated by the Action).
-- [`widget.js`](widget.js) — the embeddable widget (inherits the host page's CSS variables).
-- [`embed.html`](embed.html) — the same widget as a standalone page (for an iframe or local preview).
+- [`widget.js`](widget.js) — the embeddable widget and single source of truth for all render logic (inherits the host page's CSS variables).
+- [`embed.html`](embed.html) — a standalone/iframe page that just themes and loads `widget.js` (no duplicated logic).
 
 The Action uses the built-in `GITHUB_TOKEN` (enough for public contributions).
 To include private contribution counts, add a `GH_TOKEN` repo secret (a token with
@@ -48,6 +48,12 @@ Or, fully isolated (won't touch your page), use an iframe (needs GitHub Pages en
 <iframe src="https://abhibagaria.github.io/gitWidget/embed.html"
         style="width:100%;max-width:680px;height:200px;border:0" loading="lazy"></iframe>
 ```
+
+By default the widget reads from `raw.githubusercontent.com` first (≈5 min cache),
+then falls back to jsDelivr. To override the source order — e.g. to try a
+same-origin copy first when hosting the JSON yourself — set `window.GITWIDGET_SOURCES`
+to an array of URLs before loading the script (this is how `embed.html` prefers its
+local `./data/contributions.json`).
 
 ## Run the fetch locally
 

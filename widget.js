@@ -7,7 +7,9 @@
   if (!MOUNT) return;
   // raw.githubusercontent caches only ~5 min (and sends CORS), so the widget stays
   // near-fresh; jsDelivr (7-day browser / 12h edge cache) is just a resilient fallback.
-  var DATA_URLS = [
+  // A host page (e.g. embed.html on Pages) can set window.GITWIDGET_SOURCES to
+  // override the source order — e.g. to try a same-origin copy first.
+  var DATA_URLS = (window.GITWIDGET_SOURCES && window.GITWIDGET_SOURCES.length) ? window.GITWIDGET_SOURCES : [
     'https://raw.githubusercontent.com/abhibagaria/gitWidget/main/data/contributions.json',
     'https://cdn.jsdelivr.net/gh/abhibagaria/gitWidget@main/data/contributions.json'
   ];
@@ -73,6 +75,11 @@
     $('.gw-streak').textContent = data.currentStreak||0;
     $('.gw-long').textContent = data.longestStreak||0;
     var grid=$('.gw-grid'), months=$('.gw-months');
+    // screen-reader summary: the grid is decorative per-cell, so expose the
+    // headline numbers as a single label instead of 365 unlabelled divs.
+    grid.setAttribute('role','img');
+    grid.setAttribute('aria-label', (data.total||0)+' contributions in the last year · current streak '
+      +(data.currentStreak||0)+' days · longest streak '+(data.longestStreak||0)+' days');
     grid.style.gridTemplateColumns='repeat('+n+',1fr)';
     months.style.gridTemplateColumns='repeat('+n+',1fr)';
     monthLabels(weeks).forEach(function(m){ var s=document.createElement('span');
