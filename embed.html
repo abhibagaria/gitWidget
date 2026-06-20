@@ -70,9 +70,11 @@
 <script>
   const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const fmt = d => `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  // freshest first: same-origin file (on Pages) → raw (~5 min cache, CORS) → jsDelivr fallback
   const SOURCES = [
-    'https://cdn.jsdelivr.net/gh/abhibagaria/gitWidget@main/data/contributions.json',
     './data/contributions.json',
+    'https://raw.githubusercontent.com/abhibagaria/gitWidget/main/data/contributions.json',
+    'https://cdn.jsdelivr.net/gh/abhibagaria/gitWidget@main/data/contributions.json',
   ];
 
   // subtle audio: each contribution you sweep over plays a soft note (silent on empty days)

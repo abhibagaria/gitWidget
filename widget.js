@@ -5,7 +5,12 @@
 (function () {
   var MOUNT = document.getElementById('gitwidget');
   if (!MOUNT) return;
-  var DATA_URL = 'https://cdn.jsdelivr.net/gh/abhibagaria/gitWidget@main/data/contributions.json';
+  // raw.githubusercontent caches only ~5 min (and sends CORS), so the widget stays
+  // near-fresh; jsDelivr (7-day browser / 12h edge cache) is just a resilient fallback.
+  var DATA_URLS = [
+    'https://raw.githubusercontent.com/abhibagaria/gitWidget/main/data/contributions.json',
+    'https://cdn.jsdelivr.net/gh/abhibagaria/gitWidget@main/data/contributions.json'
+  ];
   var PROFILE = 'https://github.com/abhibagaria';
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var fmt = function (d) { return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); };
@@ -114,6 +119,8 @@
     el.innerHTML=sprite(ST,true); requestAnimationFrame(tick);
   }
 
-  fetch(DATA_URL, {cache:'no-cache'}).then(function(r){ return r.json(); }).then(render)
-    .catch(function(e){ console.error('gitWidget:', e); });
+  function load(i){ i=i||0; if(i>=DATA_URLS.length) return Promise.reject(new Error('no data source'));
+    return fetch(DATA_URLS[i], {cache:'no-cache'}).then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .catch(function(){ return load(i+1); }); }
+  load().then(render).catch(function(e){ console.error('gitWidget:', e); });
 })();
