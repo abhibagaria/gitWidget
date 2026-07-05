@@ -13,6 +13,12 @@
     'https://raw.githubusercontent.com/abhibagaria/gitWidget/main/data/contributions.json',
     'https://cdn.jsdelivr.net/gh/abhibagaria/gitWidget@main/data/contributions.json'
   ];
+  // The character's sprite sheet (a small indexed PNG) rides the same CDN as the
+  // data, with the same override hook so a host page can prefer a same-origin copy.
+  var SPRITE_URLS = (window.GITWIDGET_SPRITE_SOURCES && window.GITWIDGET_SPRITE_SOURCES.length) ? window.GITWIDGET_SPRITE_SOURCES : [
+    'https://raw.githubusercontent.com/abhibagaria/gitWidget/main/tiger-sprite.png',
+    'https://cdn.jsdelivr.net/gh/abhibagaria/gitWidget@main/tiger-sprite.png'
+  ];
   var PROFILE = 'https://github.com/abhibagaria';
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var fmt = function (d) { return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); };
@@ -36,8 +42,10 @@
   .gitwidget{max-width:680px;font-family:var(--sans,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif)}
   .gitwidget .gw-label{font-family:var(--mono,ui-monospace,Menlo,Consolas,monospace);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#6a6a72);margin-bottom:1.1rem;display:inline-flex;align-items:center;gap:.6rem}
   .gitwidget .gw-track{position:relative;height:24px}
-  .gitwidget .gw-creature{position:absolute;left:0;bottom:2px;height:28px;will-change:transform;pointer-events:none}
-  .gitwidget .gw-creature svg{height:28px;width:auto;display:block}
+  .gitwidget .gw-creature{position:absolute;left:0;bottom:1px;width:73px;height:40px;
+    background-repeat:no-repeat;background-position:0 0;image-rendering:auto;
+    will-change:transform;pointer-events:none;opacity:0;transition:opacity .3s}
+  .gitwidget .gw-creature.ready{opacity:1}
   .gitwidget .gw-months{display:grid;font-family:var(--mono,ui-monospace,Menlo,monospace);font-size:.6rem;color:var(--muted,#6a6a72);margin-bottom:5px;height:.8rem}
   .gitwidget .gw-months span{grid-row:1}
   .gitwidget .gw-grid{display:grid;grid-template-rows:repeat(7,1fr);grid-auto-flow:column;gap:3px}
@@ -95,72 +103,61 @@
     creature();
   }
 
+  // The character: the approved tiger, drawn from a small indexed sprite sheet
+  // (one horizontal strip of frames). We keep the exact reference art and just
+  // step through frames on the widget's own behaviour loop — the tiger wanders,
+  // chases the cursor (walk → run when it's far), leaps on click, and fidgets
+  // (tail swish / sit) when left alone. Right-facing frames only; heading left is
+  // a CSS scaleX(-1) mirror. See scripts/build-tiger-sprite.py for the grid.
   function creature(){
     var el=$('.gw-creature'), track=$('.gw-track');
-    // A pixel-art tiger, facing right (the widget mirrors it with scaleX(dir)).
-    // Authored as ASCII rows so it's easy to read/tweak; each glyph is one pixel.
-    // O outline/stripe · # orange · h orange highlight · . white belly/muzzle ·
-    // e eye · n nose. Leading spaces set the x-offset, so trailing ones are optional.
-    // Palette: O outline · S stripe · # orange · L light-orange · D dark inner-ear
-    //          . white (muzzle/chest/paws) · w eye-shine · e pupil · n nose.
-    var COLS={O:'#20140c',S:'#190f07','#':'#f26b1f',L:'#fa8f3a',D:'#b8551b','.':'#ffffff',w:'#ffffff',e:'#140c06',n:'#3c2618'};
-    // Head + body (rows 0–13), shared by every pose. Right-facing; the widget
-    // mirrors it with scaleX(dir) when the tiger heads left. Legs are appended
-    // per pose below. Authored as ASCII pixels — one glyph per pixel.
-    var BODY=[
-      "             OO   OO",
-      "            O#DO O#DO",
-      "            O#######O",
-      "           O#L#####L#O",
-      "   O       O###S####O",
-      "  O#O      O###we###O",
-      "  O#O      O###ee##.O",
-      "  O#O     O#S#####.n.O",
-      "  O##O    O######..#O",
-      "  O#####OO#####S###O",
-      "  O#S######S#####S#O",
-      "  O#S######S#####S#O",
-      "  O#############..#O",
-      "  O#..#########..#O"
-    ];
-    // Leg frames (rows 14–15): four legs whose column positions shift to
-    // suggest a walk / run / leap gait.
-    var LEGS={
-      idle: ["    O#O O#O  O#O O#O","    O.O O.O  O.O O.O"],
-      walkA:["   O#O O#O    O#O O#O","   O.O O.O    O.O O.O"],
-      walkB:["     O#O O#OO#O O#O","     O.O O.OO.O O.O"],
-      run1: ["  O#O O#O      O#O O#O","  O.O O.O      O.O O.O"],
-      run2: ["     O#OO#O O#OO#O","     O.OO.O O.OO.O"],
-      leap: [" O#O O#O        O#O O#O"," O.O O.O        O.O O.O"]
-    };
-    function sprite(pose,eyes){ var r='', rows=BODY.concat(LEGS[pose]||LEGS.idle);
-      for(var y=0;y<rows.length;y++){ var row=rows[y];
-        for(var x=0;x<row.length;x++){ var ch=row.charAt(x);
-          if(ch===' ') continue;
-          if((ch==='e'||ch==='w')&&!eyes) ch='#';   // blink: eye blends into the fur
-          var c=COLS[ch]; if(!c) continue;
-          r+='<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+c+'"/>'; } }
-      return '<svg viewBox="0 0 24 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>'; }
-    var x=40,tx=40,hop=0,hv=0,dir=1,mv=false,fr=0,lf=0,eyes=true,nb=2000,bu=0,nw=3000,cur=false,key='',SPW=44;
-    var tw=function(){return track.clientWidth-SPW;};
-    MOUNT.addEventListener('mousemove', function(e){ var r=track.getBoundingClientRect();
+    var FW=73, FH=40, NF=19;                        // display frame size + count
+    var MODES={ idle:{s:0,n:3,ms:420}, walk:{s:3,n:4,ms:150}, run:{s:7,n:4,ms:85},
+                jump:{s:11,n:3,ms:170}, tail:{s:14,n:3,ms:200}, sit:{s:17,n:2,ms:620} };
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var x=40,tx=40,hop=0,hv=0,dir=1,mv=false,cur=false,nw=3000,idleAt=0,mode='',frame=0,last=0,SPW=FW;
+    var tw=function(){return Math.max(0, track.clientWidth-SPW);};
+    function show(f){ frame=f; el.style.backgroundPosition=(-f*FW)+'px 0'; }
+    function place(){ el.style.transform='translateX('+x+'px) translateY('+(-hop)+'px) scaleX('+dir+')'; }
+
+    MOUNT.addEventListener('mousemove', function(e){ if(reduce) return; var r=track.getBoundingClientRect();
       tx=Math.max(0,Math.min(tw(), e.clientX-r.left-SPW/2)); cur=true; });
     MOUNT.addEventListener('mouseleave', function(){ cur=false; });
-    MOUNT.addEventListener('click', function(){ if(hop===0){ hv=4.4; eyes=true; } });
+    MOUNT.addEventListener('click', function(){ if(!reduce && hop===0){ hv=4.4; } });
+
     function tick(now){
-      if(!cur && now>nw){ tx=Math.random()*tw(); nw=now+2200+Math.random()*3500; }
-      var dx=tx-x, adx=Math.abs(dx), fast=adx>55;
+      if(!cur && now>nw){ tx=Math.random()*tw(); nw=now+2400+Math.random()*3800; }
+      var dx=tx-x, adx=Math.abs(dx), fast=adx>60;
       if(adx>0.6){ x+=dx*0.08; mv=true; dir=dx<0?-1:1; } else mv=false;
       if(hop>0||hv>0){ hop+=hv; hv-=0.45; if(hop<0){hop=0;hv=0;} }
-      if(mv && now-lf>(fast?90:130)){ fr^=1; lf=now; eyes=true; }
-      if(!mv){ if(now>nb){ bu=now+150; nb=now+1800+Math.random()*2600; } eyes=now>bu; }
-      var pose = hop>0.3 ? 'leap' : mv ? (fast?(fr?'run2':'run1'):(fr?'walkB':'walkA')) : 'idle';
-      var k=pose+(eyes?'1':'0');
-      if(k!==key){ el.innerHTML=sprite(pose,eyes); key=k; }
-      el.style.transform='translateX('+x+'px) translateY('+(-hop)+'px) scaleX('+dir+')';
+      // pick the pose from the current state; fidget once the tiger has settled
+      var want;
+      if(hop>0.3) want='jump';
+      else if(mv) want=fast?'run':'walk';
+      else { if(!idleAt) idleAt=now; var idle=now-idleAt;
+        want = idle>6500 ? 'sit' : (idle>1400 && (now%4200)<720) ? 'tail' : 'idle'; }
+      if(mv||hop>0.3) idleAt=0;
+      if(want!==mode){ mode=want; var m=MODES[mode]; show(m.s); last=now; }
+      else { var m2=MODES[mode]; if(now-last>m2.ms){ var f=frame+1; if(f>=m2.s+m2.n) f=m2.s; show(f); last=now; } }
+      place();
       requestAnimationFrame(tick);
     }
-    el.innerHTML=sprite('idle',true); requestAnimationFrame(tick);
+
+    function start(){
+      el.style.backgroundSize=(NF*FW)+'px '+FH+'px';
+      el.className='gw-creature ready';
+      show(0); place();
+      if(reduce){ mode='idle'; return; }      // hold a single frame, no motion
+      requestAnimationFrame(tick);
+    }
+    // Preload the sheet from the CDN (with fallback); the character stays hidden
+    // until a source loads, and simply never appears if none do.
+    (function load(i){ if(i>=SPRITE_URLS.length) return;
+      var img=new Image();
+      img.onload=function(){ el.style.backgroundImage='url("'+SPRITE_URLS[i]+'")'; start(); };
+      img.onerror=function(){ load(i+1); };
+      img.src=SPRITE_URLS[i];
+    })(0);
   }
 
   function load(i){ i=i||0; if(i>=DATA_URLS.length) return Promise.reject(new Error('no data source'));
