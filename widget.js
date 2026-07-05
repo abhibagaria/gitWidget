@@ -13,6 +13,12 @@
     'https://raw.githubusercontent.com/abhibagaria/gitWidget/main/data/contributions.json',
     'https://cdn.jsdelivr.net/gh/abhibagaria/gitWidget@main/data/contributions.json'
   ];
+  // The character's sprite sheet (a small indexed PNG) rides the same CDN as the
+  // data, with the same override hook so a host page can prefer a same-origin copy.
+  var SPRITE_URLS = (window.GITWIDGET_SPRITE_SOURCES && window.GITWIDGET_SPRITE_SOURCES.length) ? window.GITWIDGET_SPRITE_SOURCES : [
+    'https://raw.githubusercontent.com/abhibagaria/gitWidget/main/tiger-sprite.png',
+    'https://cdn.jsdelivr.net/gh/abhibagaria/gitWidget@main/tiger-sprite.png'
+  ];
   var PROFILE = 'https://github.com/abhibagaria';
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var fmt = function (d) { return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); };
@@ -36,8 +42,13 @@
   .gitwidget{max-width:680px;font-family:var(--sans,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif)}
   .gitwidget .gw-label{font-family:var(--mono,ui-monospace,Menlo,Consolas,monospace);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#6a6a72);margin-bottom:1.1rem;display:inline-flex;align-items:center;gap:.6rem}
   .gitwidget .gw-track{position:relative;height:24px}
-  .gitwidget .gw-creature{position:absolute;left:0;bottom:1px;height:22px;color:var(--good,#1a7f4b);will-change:transform;pointer-events:none}
-  .gitwidget .gw-creature svg{height:22px;width:auto;display:block}
+  .gitwidget .gw-shadow{position:absolute;left:0;bottom:2px;width:30px;height:6px;border-radius:50%;
+    background:radial-gradient(ellipse at center,rgba(18,12,8,.32),rgba(18,12,8,0) 72%);
+    opacity:0;pointer-events:none;will-change:transform,opacity}
+  .gitwidget .gw-creature{position:absolute;left:0;bottom:2px;width:73px;height:40px;
+    background-repeat:no-repeat;background-position:0 0;image-rendering:auto;
+    will-change:transform;pointer-events:none;opacity:0;transition:opacity .3s}
+  .gitwidget .gw-creature.ready{opacity:1}
   .gitwidget .gw-months{display:grid;font-family:var(--mono,ui-monospace,Menlo,monospace);font-size:.6rem;color:var(--muted,#6a6a72);margin-bottom:5px;height:.8rem}
   .gitwidget .gw-months span{grid-row:1}
   .gitwidget .gw-grid{display:grid;grid-template-rows:repeat(7,1fr);grid-auto-flow:column;gap:3px}
@@ -58,7 +69,7 @@
   MOUNT.className = 'gitwidget';
   MOUNT.innerHTML =
     '<div class="gw-label"><span>still shipping · last 12 months</span></div>' +
-    '<div class="gw-track"><div class="gw-creature" aria-hidden="true"></div></div>' +
+    '<div class="gw-track"><div class="gw-shadow" aria-hidden="true"></div><div class="gw-creature" aria-hidden="true"></div></div>' +
     '<div class="gw-months"></div><div class="gw-grid"></div>' +
     '<div class="gw-meta"><span><b class="gw-total">—</b> contributions · current streak <b class="gw-streak">—</b> days · longest <b class="gw-long">—</b></span>' +
     '<a href="' + PROFILE + '" target="_blank" rel="noopener">View on GitHub <span class="arr">→</span></a></div>';
@@ -95,35 +106,67 @@
     creature();
   }
 
+  // The character: the approved tiger, drawn from a small indexed sprite sheet
+  // (one horizontal strip of frames). We keep the exact reference art and just
+  // step through frames on the widget's own behaviour loop — the tiger wanders,
+  // chases the cursor (walk → run when it's far), leaps on click, and fidgets
+  // (tail swish / sit) when left alone. Right-facing frames only; heading left is
+  // a CSS scaleX(-1) mirror. See scripts/build-tiger-sprite.py for the grid.
   function creature(){
-    var el=$('.gw-creature'), track=$('.gw-track');
-    var BODY=[[1,0],[6,0],[2,1],[3,1],[4,1],[5,1],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],
-      [0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],
-      [0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[1,6],[2,6],[3,6],[4,6],[5,6],[6,6]];
-    var WA=[[1,7],[2,7],[5,7],[6,7]], WB=[[2,7],[3,7],[4,7],[5,7]], ST=[[1,7],[3,7],[5,7]];
-    function sprite(legs,eyes){ var r='';
-      function put(x,y,c){ r+='<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+c+'"/>'; }
-      BODY.forEach(function(p){put(p[0],p[1],'currentColor');}); legs.forEach(function(p){put(p[0],p[1],'currentColor');});
-      if(eyes){put(2,3,'#fff');put(5,3,'#fff');}
-      return '<svg viewBox="-1 0 11 8" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>'; }
-    var x=40,tx=40,hop=0,hv=0,dir=1,mv=false,fr=0,lf=0,eyes=true,nb=2000,bu=0,nw=3000,cur=false,key='',SPW=25;
-    var tw=function(){return track.clientWidth-SPW;};
-    MOUNT.addEventListener('mousemove', function(e){ var r=track.getBoundingClientRect();
+    var el=$('.gw-creature'), sh=$('.gw-shadow'), track=$('.gw-track');
+    var FW=73, FH=40, NF=19;                        // display frame size + count
+    var SHW=30, PEAK=(4.4*4.4)/(2*0.45);            // shadow width; jump apex height (px)
+    var MODES={ idle:{s:0,n:3,ms:420}, walk:{s:3,n:4,ms:150}, run:{s:7,n:4,ms:85},
+                jump:{s:11,n:3,ms:170}, tail:{s:14,n:3,ms:200}, sit:{s:17,n:2,ms:620} };
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var x=40,tx=40,hop=0,hv=0,dir=1,mv=false,cur=false,nw=3000,idleAt=0,mode='',frame=0,last=0,SPW=FW;
+    var tw=function(){return Math.max(0, track.clientWidth-SPW);};
+    function show(f){ frame=f; el.style.backgroundPosition=(-f*FW)+'px 0'; }
+    function place(){ el.style.transform='translateX('+x+'px) translateY('+(-hop)+'px) scaleX('+dir+')'; }
+    // The shadow lives on the ground: it tracks the tiger's centre horizontally
+    // but never with translateY, and shrinks + fades the higher the tiger leaps.
+    function shade(fast){ var k=hop>0?Math.min(1,hop/PEAK):0, s=1-0.55*k;
+      sh.style.transform='translateX('+(x+FW*0.5-SHW/2)+'px) scale('+(s*(fast?1.15:1)).toFixed(3)+','+s.toFixed(3)+')';
+      sh.style.opacity=(1-0.72*k).toFixed(3); }
+
+    MOUNT.addEventListener('mousemove', function(e){ if(reduce) return; var r=track.getBoundingClientRect();
       tx=Math.max(0,Math.min(tw(), e.clientX-r.left-SPW/2)); cur=true; });
     MOUNT.addEventListener('mouseleave', function(){ cur=false; });
-    MOUNT.addEventListener('click', function(){ if(hop===0){ hv=4.4; eyes=true; } });
+    MOUNT.addEventListener('click', function(){ if(!reduce && hop===0){ hv=4.4; } });
+
     function tick(now){
-      if(!cur && now>nw){ tx=Math.random()*tw(); nw=now+2200+Math.random()*3500; }
-      var dx=tx-x; if(Math.abs(dx)>0.6){ x+=dx*0.08; mv=true; dir=dx<0?-1:1; } else mv=false;
+      if(!cur && now>nw){ tx=Math.random()*tw(); nw=now+2400+Math.random()*3800; }
+      var dx=tx-x, adx=Math.abs(dx), fast=adx>60;
+      if(adx>0.6){ x+=dx*0.08; mv=true; dir=dx<0?-1:1; } else mv=false;
       if(hop>0||hv>0){ hop+=hv; hv-=0.45; if(hop<0){hop=0;hv=0;} }
-      if(mv && now-lf>120){ fr^=1; lf=now; eyes=true; }
-      if(!mv){ if(now>nb){ bu=now+150; nb=now+1800+Math.random()*2600; } eyes=now>bu; }
-      var legs=mv?(fr?WB:WA):ST, k=(legs===WB?'b':legs===WA?'a':'s')+(eyes?'1':'0');
-      if(k!==key){ el.innerHTML=sprite(legs,eyes); key=k; }
-      el.style.transform='translateX('+x+'px) translateY('+(-hop)+'px) scaleX('+dir+')';
+      // pick the pose from the current state; fidget once the tiger has settled
+      var want;
+      if(hop>0.3) want='jump';
+      else if(mv) want=fast?'run':'walk';
+      else { if(!idleAt) idleAt=now; var idle=now-idleAt;
+        want = idle>6500 ? 'sit' : (idle>1400 && (now%4200)<720) ? 'tail' : 'idle'; }
+      if(mv||hop>0.3) idleAt=0;
+      if(want!==mode){ mode=want; var m=MODES[mode]; show(m.s); last=now; }
+      else { var m2=MODES[mode]; if(now-last>m2.ms){ var f=frame+1; if(f>=m2.s+m2.n) f=m2.s; show(f); last=now; } }
+      place(); shade(fast);
       requestAnimationFrame(tick);
     }
-    el.innerHTML=sprite(ST,true); requestAnimationFrame(tick);
+
+    function start(){
+      el.style.backgroundSize=(NF*FW)+'px '+FH+'px';
+      el.className='gw-creature ready';
+      show(0); place(); shade(false);
+      if(reduce){ mode='idle'; return; }      // hold a single frame, no motion
+      requestAnimationFrame(tick);
+    }
+    // Preload the sheet from the CDN (with fallback); the character stays hidden
+    // until a source loads, and simply never appears if none do.
+    (function load(i){ if(i>=SPRITE_URLS.length) return;
+      var img=new Image();
+      img.onload=function(){ el.style.backgroundImage='url("'+SPRITE_URLS[i]+'")'; start(); };
+      img.onerror=function(){ load(i+1); };
+      img.src=SPRITE_URLS[i];
+    })(0);
   }
 
   function load(i){ i=i||0; if(i>=DATA_URLS.length) return Promise.reject(new Error('no data source'));
