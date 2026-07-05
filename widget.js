@@ -45,7 +45,7 @@
   .gitwidget .gw-shadow{position:absolute;left:0;bottom:2px;width:30px;height:6px;border-radius:50%;
     background:radial-gradient(ellipse at center,rgba(18,12,8,.32),rgba(18,12,8,0) 72%);
     opacity:0;pointer-events:none;will-change:transform,opacity}
-  .gitwidget .gw-creature{position:absolute;left:0;bottom:2px;width:73px;height:40px;
+  .gitwidget .gw-creature{position:absolute;left:0;bottom:0;width:78px;height:45px;
     background-repeat:no-repeat;background-position:0 0;image-rendering:auto;
     will-change:transform;pointer-events:none;opacity:0;transition:opacity .3s}
   .gitwidget .gw-creature.ready{opacity:1}
@@ -114,7 +114,7 @@
   // a CSS scaleX(-1) mirror. See scripts/build-tiger-sprite.py for the grid.
   function creature(){
     var el=$('.gw-creature'), sh=$('.gw-shadow'), track=$('.gw-track');
-    var FW=73, FH=40, NF=19;                        // display frame size + count
+    var FW=78, FH=45, NF=19;                        // display frame size + count (incl. gutter)
     var SHW=30, PEAK=(4.4*4.4)/(2*0.45);            // shadow width; jump apex height (px)
     var MODES={ idle:{s:0,n:3,ms:420}, walk:{s:3,n:4,ms:150}, run:{s:7,n:4,ms:85},
                 jump:{s:11,n:3,ms:170}, tail:{s:14,n:3,ms:200}, sit:{s:17,n:2,ms:620} };
@@ -146,7 +146,15 @@
       else { if(!idleAt) idleAt=now; var idle=now-idleAt;
         want = idle>6500 ? 'sit' : (idle>1400 && (now%4200)<720) ? 'tail' : 'idle'; }
       if(mv||hop>0.3) idleAt=0;
-      if(want!==mode){ mode=want; var m=MODES[mode]; show(m.s); last=now; }
+      if(want==='jump'){
+        // drive the jump frame from the actual arc, not a timer, so the
+        // crouch→stretch→gather→land sequence always reads (11 crouch, 12
+        // airborne stretch, 13 gather-to-land). Otherwise the landing frame
+        // gets skipped right before touchdown.
+        mode='jump';
+        var jf = hv>0 ? (hop<5?11:12) : (hop>5?13:11);
+        if(jf!==frame) show(jf);
+      } else if(want!==mode){ mode=want; var m=MODES[mode]; show(m.s); last=now; }
       else { var m2=MODES[mode]; if(now-last>m2.ms){ var f=frame+1; if(f>=m2.s+m2.n) f=m2.s; show(f); last=now; } }
       place(); shade(fast);
       requestAnimationFrame(tick);
