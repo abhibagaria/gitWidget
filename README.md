@@ -5,7 +5,7 @@ Your real last-year activity, refreshed daily, with a few quiet details:
 
 - **Contribution grid** — themed to inherit the host page's design tokens (`--ink`, `--good`, `--accent`, `--mono`).
 - **Blank-artboard empty state** — days with no activity render as a faint designer dot-grid (a Figma/Sketch canvas), so quiet days read as open canvas, not dead squares. Your commits are the elements placed on it.
-- **A tiger** — a little tiger prowls the top of the grid: it wanders, follows your cursor (walking, then breaking into a run when it's far), leaps on click, and fidgets (looks around, swishes its tail, then sits) when left alone. It's animated from a small indexed sprite sheet (`tiger-sprite.png`, ~40 KB) served from the CDN alongside the data, so `widget.js` stays tiny. All 30 reference poses are used with **direction-native** left/right art (no mirroring), and every frame is used verbatim (baked base + ground shadow kept — nothing keyed or erased) and **feet-aligned to one baseline** with a transparent margin, so the tiger keeps a steady ground line and is never clipped (even inside a tight host container) or bled at fractional device-pixel ratios. Respects `prefers-reduced-motion`. Rebuild the sheet with [`scripts/build-tiger-sprite.py`](scripts/build-tiger-sprite.py).
+- **A tiger** — a little tiger prowls the top of the grid: it wanders, follows your cursor (walking, then breaking into a run when it's far), leaps on click, and fidgets (looks around, swishes its tail, then sits) when left alone. It's animated from a small indexed sprite sheet (`tiger-sprite.png`, ~40 KB) served from the CDN alongside the data, so `widget.js` stays tiny. It uses all 30 reference poses with native left/right art, keeps every frame feet-aligned to a steady ground line (so nothing clips, even inside a tight host container), and respects `prefers-reduced-motion`. Rebuild the sheet with [`scripts/build-tiger-sprite.py`](scripts/build-tiger-sprite.py).
 - **Subtle hover audio** — sweeping the grid plays a soft pentatonic note per active day (higher/louder for busier days, silent on empty days). Audio unlocks on first interaction, per browser policy.
 
 ## How it works
@@ -54,6 +54,18 @@ then falls back to jsDelivr. To override the source order — e.g. to try a
 same-origin copy first when hosting the JSON yourself — set `window.GITWIDGET_SOURCES`
 to an array of URLs before loading the script (this is how `embed.html` prefers its
 local `./data/contributions.json`).
+
+### Getting updates
+
+Pinning `@main` in the embed URL means jsDelivr caches `widget.js` / `tiger-sprite.png`
+for up to ~7 days, so a code change may not show up right away. To force the latest:
+
+- **Append a version query** to the script — `…/widget.js?v=1` — and bump the number
+  whenever you want a fresh fetch. Simplest for most sites.
+- **Or purge jsDelivr** by opening `https://purge.jsdelivr.net/gh/abhibagaria/gitWidget@main/widget.js`
+  (and the same for `tiger-sprite.png`), then hard-reload.
+
+For fully deterministic loads, pin a tag or commit (e.g. `@v1`) instead of `@main`.
 
 ## Run the fetch locally
 
