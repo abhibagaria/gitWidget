@@ -115,10 +115,10 @@
   function creature(){
     var el=$('.gw-creature'), track=$('.gw-track');
     var FW=80, FH=48, NF=30;                        // display frame size + count
-    var MODES={ walkR:{s:0,n:4,ms:175}, walkL:{s:4,n:4,ms:175},
-                runR:{s:8,n:4,ms:105},  runL:{s:12,n:4,ms:105},
+    var MODES={ walkR:{s:0,n:4,ms:150}, walkL:{s:4,n:4,ms:150},
+                runR:{s:8,n:4,ms:85},   runL:{s:12,n:4,ms:85},
                 jumpR:{s:16,n:3},       jumpL:{s:19,n:3},
-                idle:{s:22,n:3,ms:560}, tail:{s:25,n:3,ms:230}, sit:{s:28,n:2,ms:750} };
+                idle:{s:22,n:3,ms:420}, tail:{s:25,n:3,ms:200}, sit:{s:28,n:2,ms:620} };
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var x=40,tx=40,hop=0,hv=0,dir=1,mv=false,cur=false,nw=3000,idleAt=0,mode='',frame=0,last=0,SPW=FW;
     var tw=function(){return Math.max(0, track.clientWidth-SPW);};
@@ -133,18 +133,17 @@
     MOUNT.addEventListener('click', function(){ if(!reduce && hop===0){ hv=4.4; } });
 
     function tick(now){
-      // wander occasionally when the cursor isn't around — slow, so it also has
-      // time to settle, look about and sit between strolls.
-      if(!cur && now>nw){ tx=Math.random()*tw(); nw=now+4200+Math.random()*6000; }
-      var dx=tx-x, adx=Math.abs(dx), fast=adx>115;   // only break into a run when far
-      if(adx>0.6){ x+=dx*0.05; mv=true; dir=dx<0?-1:1; } else mv=false;  // slower, stickier follow
+      // wander occasionally when the cursor isn't around
+      if(!cur && now>nw){ tx=Math.random()*tw(); nw=now+2400+Math.random()*3800; }
+      var dx=tx-x, adx=Math.abs(dx), fast=adx>60;
+      if(adx>0.6){ x+=dx*0.08; mv=true; dir=dx<0?-1:1; } else mv=false;
       if(hop>0||hv>0){ hop+=hv; hv-=0.45; if(hop<0){hop=0;hv=0;} }
       // pick the pose from the current state; fidget once the tiger has settled
       var d=dir<0?'L':'R', want;
       if(hop>0.3) want='jump'+d;
       else if(mv) want=(fast?'run':'walk')+d;
       else { if(!idleAt) idleAt=now; var idle=now-idleAt;
-        want = idle>9000 ? 'sit' : (idle>3000 && (now%5600)<950) ? 'tail' : 'idle'; }
+        want = idle>6500 ? 'sit' : (idle>1400 && (now%4200)<720) ? 'tail' : 'idle'; }
       if(mv||hop>0.3) idleAt=0;
       if(want==='jumpR'||want==='jumpL'){
         // drive the jump frame from the arc (crouch → airborne stretch → gather →
