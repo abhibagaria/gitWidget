@@ -42,10 +42,7 @@
   .gitwidget{max-width:680px;font-family:var(--sans,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif)}
   .gitwidget .gw-label{font-family:var(--mono,ui-monospace,Menlo,Consolas,monospace);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#6a6a72);margin-bottom:1.1rem;display:inline-flex;align-items:center;gap:.6rem}
   .gitwidget .gw-track{position:relative;height:24px}
-  .gitwidget .gw-shadow{position:absolute;left:0;bottom:2px;width:30px;height:6px;border-radius:50%;
-    background:radial-gradient(ellipse at center,rgba(18,12,8,.32),rgba(18,12,8,0) 72%);
-    opacity:0;pointer-events:none;will-change:transform,opacity}
-  .gitwidget .gw-creature{position:absolute;left:0;bottom:2px;width:73px;height:40px;
+  .gitwidget .gw-creature{position:absolute;left:0;bottom:0;width:78px;height:45px;
     background-repeat:no-repeat;background-position:0 0;image-rendering:auto;
     will-change:transform;pointer-events:none;opacity:0;transition:opacity .3s}
   .gitwidget .gw-creature.ready{opacity:1}
@@ -69,7 +66,7 @@
   MOUNT.className = 'gitwidget';
   MOUNT.innerHTML =
     '<div class="gw-label"><span>still shipping · last 12 months</span></div>' +
-    '<div class="gw-track"><div class="gw-shadow" aria-hidden="true"></div><div class="gw-creature" aria-hidden="true"></div></div>' +
+    '<div class="gw-track"><div class="gw-creature" aria-hidden="true"></div></div>' +
     '<div class="gw-months"></div><div class="gw-grid"></div>' +
     '<div class="gw-meta"><span><b class="gw-total">—</b> contributions · current streak <b class="gw-streak">—</b> days · longest <b class="gw-long">—</b></span>' +
     '<a href="' + PROFILE + '" target="_blank" rel="noopener">View on GitHub <span class="arr">→</span></a></div>';
@@ -107,27 +104,25 @@
   }
 
   // The character: the approved tiger, drawn from a small indexed sprite sheet
-  // (one horizontal strip of frames). We keep the exact reference art and just
-  // step through frames on the widget's own behaviour loop — the tiger wanders,
-  // chases the cursor (walk → run when it's far), leaps on click, and fidgets
-  // (tail swish / sit) when left alone. Right-facing frames only; heading left is
-  // a CSS scaleX(-1) mirror. See scripts/build-tiger-sprite.py for the grid.
+  // (one horizontal strip of frames, used verbatim — the artist's baked base +
+  // ground shadow is kept, so the jump frame already shows the tiger high with a
+  // small shadow low on the ground; no separate shadow and no vertical transform
+  // are needed). We step through frames on the widget's own behaviour loop — the
+  // tiger wanders, chases the cursor (walk → run when it's far), leaps on click,
+  // and fidgets (tail swish / sit) when left alone. Right-facing frames only;
+  // heading left is a CSS scaleX(-1) mirror. See scripts/build-tiger-sprite.py.
   function creature(){
-    var el=$('.gw-creature'), sh=$('.gw-shadow'), track=$('.gw-track');
-    var FW=73, FH=40, NF=19;                        // display frame size + count
-    var SHW=30, PEAK=(4.4*4.4)/(2*0.45);            // shadow width; jump apex height (px)
+    var el=$('.gw-creature'), track=$('.gw-track');
+    var FW=78, FH=45, NF=19;                        // display frame size + count (incl. gutter)
     var MODES={ idle:{s:0,n:3,ms:420}, walk:{s:3,n:4,ms:150}, run:{s:7,n:4,ms:85},
                 jump:{s:11,n:3,ms:170}, tail:{s:14,n:3,ms:200}, sit:{s:17,n:2,ms:620} };
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var x=40,tx=40,hop=0,hv=0,dir=1,mv=false,cur=false,nw=3000,idleAt=0,mode='',frame=0,last=0,SPW=FW;
     var tw=function(){return Math.max(0, track.clientWidth-SPW);};
     function show(f){ frame=f; el.style.backgroundPosition=(-f*FW)+'px 0'; }
-    function place(){ el.style.transform='translateX('+x+'px) translateY('+(-hop)+'px) scaleX('+dir+')'; }
-    // The shadow lives on the ground: it tracks the tiger's centre horizontally
-    // but never with translateY, and shrinks + fades the higher the tiger leaps.
-    function shade(fast){ var k=hop>0?Math.min(1,hop/PEAK):0, s=1-0.55*k;
-      sh.style.transform='translateX('+(x+FW*0.5-SHW/2)+'px) scale('+(s*(fast?1.15:1)).toFixed(3)+','+s.toFixed(3)+')';
-      sh.style.opacity=(1-0.72*k).toFixed(3); }
+    // No translateY: the jump's height (and its grounded shadow) is baked into
+    // the frame art, so lifting the element would double it and float the shadow.
+    function place(){ el.style.transform='translateX('+x+'px) scaleX('+dir+')'; }
 
     MOUNT.addEventListener('mousemove', function(e){ if(reduce) return; var r=track.getBoundingClientRect();
       tx=Math.max(0,Math.min(tw(), e.clientX-r.left-SPW/2)); cur=true; });
@@ -146,16 +141,24 @@
       else { if(!idleAt) idleAt=now; var idle=now-idleAt;
         want = idle>6500 ? 'sit' : (idle>1400 && (now%4200)<720) ? 'tail' : 'idle'; }
       if(mv||hop>0.3) idleAt=0;
-      if(want!==mode){ mode=want; var m=MODES[mode]; show(m.s); last=now; }
+      if(want==='jump'){
+        // drive the jump frame from the actual arc, not a timer, so the
+        // crouch→stretch→gather→land sequence always reads (11 crouch, 12
+        // airborne stretch, 13 gather-to-land). Otherwise the landing frame
+        // gets skipped right before touchdown.
+        mode='jump';
+        var jf = hv>0 ? (hop<5?11:12) : (hop>5?13:11);
+        if(jf!==frame) show(jf);
+      } else if(want!==mode){ mode=want; var m=MODES[mode]; show(m.s); last=now; }
       else { var m2=MODES[mode]; if(now-last>m2.ms){ var f=frame+1; if(f>=m2.s+m2.n) f=m2.s; show(f); last=now; } }
-      place(); shade(fast);
+      place();
       requestAnimationFrame(tick);
     }
 
     function start(){
       el.style.backgroundSize=(NF*FW)+'px '+FH+'px';
       el.className='gw-creature ready';
-      show(0); place(); shade(false);
+      show(0); place();
       if(reduce){ mode='idle'; return; }      // hold a single frame, no motion
       requestAnimationFrame(tick);
     }
