@@ -36,8 +36,8 @@
   .gitwidget{max-width:680px;font-family:var(--sans,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif)}
   .gitwidget .gw-label{font-family:var(--mono,ui-monospace,Menlo,Consolas,monospace);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#6a6a72);margin-bottom:1.1rem;display:inline-flex;align-items:center;gap:.6rem}
   .gitwidget .gw-track{position:relative;height:24px}
-  .gitwidget .gw-creature{position:absolute;left:0;bottom:1px;height:22px;color:var(--good,#1a7f4b);will-change:transform;pointer-events:none}
-  .gitwidget .gw-creature svg{height:22px;width:auto;display:block}
+  .gitwidget .gw-creature{position:absolute;left:0;bottom:0;height:24px;will-change:transform;pointer-events:none}
+  .gitwidget .gw-creature svg{height:24px;width:auto;display:block}
   .gitwidget .gw-months{display:grid;font-family:var(--mono,ui-monospace,Menlo,monospace);font-size:.6rem;color:var(--muted,#6a6a72);margin-bottom:5px;height:.8rem}
   .gitwidget .gw-months span{grid-row:1}
   .gitwidget .gw-grid{display:grid;grid-template-rows:repeat(7,1fr);grid-auto-flow:column;gap:3px}
@@ -97,16 +97,43 @@
 
   function creature(){
     var el=$('.gw-creature'), track=$('.gw-track');
-    var BODY=[[1,0],[6,0],[2,1],[3,1],[4,1],[5,1],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],
-      [0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],
-      [0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[1,6],[2,6],[3,6],[4,6],[5,6],[6,6]];
-    var WA=[[1,7],[2,7],[5,7],[6,7]], WB=[[2,7],[3,7],[4,7],[5,7]], ST=[[1,7],[3,7],[5,7]];
-    function sprite(legs,eyes){ var r='';
-      function put(x,y,c){ r+='<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+c+'"/>'; }
-      BODY.forEach(function(p){put(p[0],p[1],'currentColor');}); legs.forEach(function(p){put(p[0],p[1],'currentColor');});
-      if(eyes){put(2,3,'#fff');put(5,3,'#fff');}
-      return '<svg viewBox="-1 0 11 8" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>'; }
-    var x=40,tx=40,hop=0,hv=0,dir=1,mv=false,fr=0,lf=0,eyes=true,nb=2000,bu=0,nw=3000,cur=false,key='',SPW=25;
+    // A pixel-art tiger, facing right (the widget mirrors it with scaleX(dir)).
+    // Authored as ASCII rows so it's easy to read/tweak; each glyph is one pixel.
+    // O outline/stripe · # orange · h orange highlight · . white belly/muzzle ·
+    // e eye · n nose. Leading spaces set the x-offset, so trailing ones are optional.
+    var COLS={O:'#2a1c11',S:'#2a1c11','#':'#ee6a1e','.':'#fdf2e6',e:'#140d06',n:'#3a2415'};
+    // Upper body (shared by every pose): ears, striped head + eyes, striped back,
+    // white muzzle/belly, and a short curled tail. Right-facing.
+    var BODY=[
+      "           OO OO",     // two ear tips
+      "          O######O",   // head crown
+      "  O      O#S###S#O",   // tail tip + forehead stripes
+      "  #O     O#ee#ee#O",   // tail ring + two eyes
+      "  #O##############O",  // back + head/body join
+      "  O#S##S##S##S#.nO",   // stripes + white muzzle + nose
+      "  O#S##S##S##S#..O",   // stripes + chin
+      "  O#............#O",   // white belly band
+      "  O##############O"    // body underside
+    ];
+    // Leg frames appended below BODY (rows y9–y11). Hind legs sit under the
+    // tail (x≈4–5), front legs under the head/chest (x≈13–15).
+    var LEGS={
+      stand:["    O#O      O#O ","    O#O      O#O ","    O.O      O.O "],
+      walkA:["   O#O        O#O"," O#O         O#O "," O.O         O.O "],
+      walkB:["     O#O    O#O  ","    O#O      O#O ","    O.O      O.O "],
+      run1: ["  O#O          O#O","O#O          O#O ","O.O          O.O "],
+      run2: ["    O#O    O#O   ","   O#O      O#O  ","   O.O      O.O  "],
+      leap: [" O#O           O#O","O#O           O#O","O.O           O.O"]
+    };
+    function sprite(pose,eyes){ var r='', rows=BODY.concat(LEGS[pose]||LEGS.stand);
+      for(var y=0;y<rows.length;y++){ var row=rows[y];
+        for(var x=0;x<row.length;x++){ var ch=row.charAt(x);
+          if(ch===' ') continue;
+          if(ch==='e'&&!eyes) ch='#';            // blink: eye blends into the fur
+          var c=COLS[ch]; if(!c) continue;
+          r+='<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+c+'"/>'; } }
+      return '<svg viewBox="0 0 18 12" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>'; }
+    var x=40,tx=40,hop=0,hv=0,dir=1,mv=false,fr=0,lf=0,eyes=true,nb=2000,bu=0,nw=3000,cur=false,key='',SPW=36;
     var tw=function(){return track.clientWidth-SPW;};
     MOUNT.addEventListener('mousemove', function(e){ var r=track.getBoundingClientRect();
       tx=Math.max(0,Math.min(tw(), e.clientX-r.left-SPW/2)); cur=true; });
@@ -114,16 +141,18 @@
     MOUNT.addEventListener('click', function(){ if(hop===0){ hv=4.4; eyes=true; } });
     function tick(now){
       if(!cur && now>nw){ tx=Math.random()*tw(); nw=now+2200+Math.random()*3500; }
-      var dx=tx-x; if(Math.abs(dx)>0.6){ x+=dx*0.08; mv=true; dir=dx<0?-1:1; } else mv=false;
+      var dx=tx-x, adx=Math.abs(dx), fast=adx>55;
+      if(adx>0.6){ x+=dx*0.08; mv=true; dir=dx<0?-1:1; } else mv=false;
       if(hop>0||hv>0){ hop+=hv; hv-=0.45; if(hop<0){hop=0;hv=0;} }
-      if(mv && now-lf>120){ fr^=1; lf=now; eyes=true; }
+      if(mv && now-lf>(fast?90:130)){ fr^=1; lf=now; eyes=true; }
       if(!mv){ if(now>nb){ bu=now+150; nb=now+1800+Math.random()*2600; } eyes=now>bu; }
-      var legs=mv?(fr?WB:WA):ST, k=(legs===WB?'b':legs===WA?'a':'s')+(eyes?'1':'0');
-      if(k!==key){ el.innerHTML=sprite(legs,eyes); key=k; }
+      var pose = hop>0.3 ? 'leap' : mv ? (fast?(fr?'run2':'run1'):(fr?'walkB':'walkA')) : 'stand';
+      var k=pose+(eyes?'1':'0');
+      if(k!==key){ el.innerHTML=sprite(pose,eyes); key=k; }
       el.style.transform='translateX('+x+'px) translateY('+(-hop)+'px) scaleX('+dir+')';
       requestAnimationFrame(tick);
     }
-    el.innerHTML=sprite(ST,true); requestAnimationFrame(tick);
+    el.innerHTML=sprite('stand',true); requestAnimationFrame(tick);
   }
 
   function load(i){ i=i||0; if(i>=DATA_URLS.length) return Promise.reject(new Error('no data source'));

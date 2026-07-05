@@ -5,7 +5,7 @@ Your real last-year activity, refreshed daily, with a few quiet details:
 
 - **Contribution grid** — themed to inherit the host page's design tokens (`--ink`, `--good`, `--accent`, `--mono`).
 - **Blank-artboard empty state** — days with no activity render as a faint designer dot-grid (a Figma/Sketch canvas), so quiet days read as open canvas, not dead squares. Your commits are the elements placed on it.
-- **A pixel creature** — a tiny sprite strolls the top of the grid, follows your cursor, blinks when idle, and hops on click.
+- **A pixel tiger** — a tiny orange, black-striped tiger sprite prowls the top of the grid: it follows your cursor, walks and breaks into a run when chasing, blinks when idle, and leaps on click. Hand-drawn as inline SVG pixels (no image assets), so it stays self-contained.
 - **Subtle hover audio** — sweeping the grid plays a soft pentatonic note per active day (higher/louder for busier days, silent on empty days). Audio unlocks on first interaction, per browser policy.
 
 ## How it works
