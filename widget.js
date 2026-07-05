@@ -36,8 +36,8 @@
   .gitwidget{max-width:680px;font-family:var(--sans,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif)}
   .gitwidget .gw-label{font-family:var(--mono,ui-monospace,Menlo,Consolas,monospace);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#6a6a72);margin-bottom:1.1rem;display:inline-flex;align-items:center;gap:.6rem}
   .gitwidget .gw-track{position:relative;height:24px}
-  .gitwidget .gw-creature{position:absolute;left:0;bottom:0;height:24px;will-change:transform;pointer-events:none}
-  .gitwidget .gw-creature svg{height:24px;width:auto;display:block}
+  .gitwidget .gw-creature{position:absolute;left:0;bottom:2px;height:28px;will-change:transform;pointer-events:none}
+  .gitwidget .gw-creature svg{height:28px;width:auto;display:block}
   .gitwidget .gw-months{display:grid;font-family:var(--mono,ui-monospace,Menlo,monospace);font-size:.6rem;color:var(--muted,#6a6a72);margin-bottom:5px;height:.8rem}
   .gitwidget .gw-months span{grid-row:1}
   .gitwidget .gw-grid{display:grid;grid-template-rows:repeat(7,1fr);grid-auto-flow:column;gap:3px}
@@ -101,39 +101,47 @@
     // Authored as ASCII rows so it's easy to read/tweak; each glyph is one pixel.
     // O outline/stripe · # orange · h orange highlight · . white belly/muzzle ·
     // e eye · n nose. Leading spaces set the x-offset, so trailing ones are optional.
-    var COLS={O:'#2a1c11',S:'#2a1c11','#':'#ee6a1e','.':'#fdf2e6',e:'#140d06',n:'#3a2415'};
-    // Upper body (shared by every pose): ears, striped head + eyes, striped back,
-    // white muzzle/belly, and a short curled tail. Right-facing.
+    // Palette: O outline · S stripe · # orange · L light-orange · D dark inner-ear
+    //          . white (muzzle/chest/paws) · w eye-shine · e pupil · n nose.
+    var COLS={O:'#20140c',S:'#190f07','#':'#f26b1f',L:'#fa8f3a',D:'#b8551b','.':'#ffffff',w:'#ffffff',e:'#140c06',n:'#3c2618'};
+    // Head + body (rows 0–13), shared by every pose. Right-facing; the widget
+    // mirrors it with scaleX(dir) when the tiger heads left. Legs are appended
+    // per pose below. Authored as ASCII pixels — one glyph per pixel.
     var BODY=[
-      "           OO OO",     // two ear tips
-      "          O######O",   // head crown
-      "  O      O#S###S#O",   // tail tip + forehead stripes
-      "  #O     O#ee#ee#O",   // tail ring + two eyes
-      "  #O##############O",  // back + head/body join
-      "  O#S##S##S##S#.nO",   // stripes + white muzzle + nose
-      "  O#S##S##S##S#..O",   // stripes + chin
-      "  O#............#O",   // white belly band
-      "  O##############O"    // body underside
+      "             OO   OO",
+      "            O#DO O#DO",
+      "            O#######O",
+      "           O#L#####L#O",
+      "   O       O###S####O",
+      "  O#O      O###we###O",
+      "  O#O      O###ee##.O",
+      "  O#O     O#S#####.n.O",
+      "  O##O    O######..#O",
+      "  O#####OO#####S###O",
+      "  O#S######S#####S#O",
+      "  O#S######S#####S#O",
+      "  O#############..#O",
+      "  O#..#########..#O"
     ];
-    // Leg frames appended below BODY (rows y9–y11). Hind legs sit under the
-    // tail (x≈4–5), front legs under the head/chest (x≈13–15).
+    // Leg frames (rows 14–15): four legs whose column positions shift to
+    // suggest a walk / run / leap gait.
     var LEGS={
-      stand:["    O#O      O#O ","    O#O      O#O ","    O.O      O.O "],
-      walkA:["   O#O        O#O"," O#O         O#O "," O.O         O.O "],
-      walkB:["     O#O    O#O  ","    O#O      O#O ","    O.O      O.O "],
-      run1: ["  O#O          O#O","O#O          O#O ","O.O          O.O "],
-      run2: ["    O#O    O#O   ","   O#O      O#O  ","   O.O      O.O  "],
-      leap: [" O#O           O#O","O#O           O#O","O.O           O.O"]
+      idle: ["    O#O O#O  O#O O#O","    O.O O.O  O.O O.O"],
+      walkA:["   O#O O#O    O#O O#O","   O.O O.O    O.O O.O"],
+      walkB:["     O#O O#OO#O O#O","     O.O O.OO.O O.O"],
+      run1: ["  O#O O#O      O#O O#O","  O.O O.O      O.O O.O"],
+      run2: ["     O#OO#O O#OO#O","     O.OO.O O.OO.O"],
+      leap: [" O#O O#O        O#O O#O"," O.O O.O        O.O O.O"]
     };
-    function sprite(pose,eyes){ var r='', rows=BODY.concat(LEGS[pose]||LEGS.stand);
+    function sprite(pose,eyes){ var r='', rows=BODY.concat(LEGS[pose]||LEGS.idle);
       for(var y=0;y<rows.length;y++){ var row=rows[y];
         for(var x=0;x<row.length;x++){ var ch=row.charAt(x);
           if(ch===' ') continue;
-          if(ch==='e'&&!eyes) ch='#';            // blink: eye blends into the fur
+          if((ch==='e'||ch==='w')&&!eyes) ch='#';   // blink: eye blends into the fur
           var c=COLS[ch]; if(!c) continue;
           r+='<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+c+'"/>'; } }
-      return '<svg viewBox="0 0 18 12" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>'; }
-    var x=40,tx=40,hop=0,hv=0,dir=1,mv=false,fr=0,lf=0,eyes=true,nb=2000,bu=0,nw=3000,cur=false,key='',SPW=36;
+      return '<svg viewBox="0 0 24 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>'; }
+    var x=40,tx=40,hop=0,hv=0,dir=1,mv=false,fr=0,lf=0,eyes=true,nb=2000,bu=0,nw=3000,cur=false,key='',SPW=44;
     var tw=function(){return track.clientWidth-SPW;};
     MOUNT.addEventListener('mousemove', function(e){ var r=track.getBoundingClientRect();
       tx=Math.max(0,Math.min(tw(), e.clientX-r.left-SPW/2)); cur=true; });
@@ -146,13 +154,13 @@
       if(hop>0||hv>0){ hop+=hv; hv-=0.45; if(hop<0){hop=0;hv=0;} }
       if(mv && now-lf>(fast?90:130)){ fr^=1; lf=now; eyes=true; }
       if(!mv){ if(now>nb){ bu=now+150; nb=now+1800+Math.random()*2600; } eyes=now>bu; }
-      var pose = hop>0.3 ? 'leap' : mv ? (fast?(fr?'run2':'run1'):(fr?'walkB':'walkA')) : 'stand';
+      var pose = hop>0.3 ? 'leap' : mv ? (fast?(fr?'run2':'run1'):(fr?'walkB':'walkA')) : 'idle';
       var k=pose+(eyes?'1':'0');
       if(k!==key){ el.innerHTML=sprite(pose,eyes); key=k; }
       el.style.transform='translateX('+x+'px) translateY('+(-hop)+'px) scaleX('+dir+')';
       requestAnimationFrame(tick);
     }
-    el.innerHTML=sprite('stand',true); requestAnimationFrame(tick);
+    el.innerHTML=sprite('idle',true); requestAnimationFrame(tick);
   }
 
   function load(i){ i=i||0; if(i>=DATA_URLS.length) return Promise.reject(new Error('no data source'));
