@@ -9,13 +9,17 @@ transparency. That keeps the exact reference art while shrinking the payload fro
 ~650 KB of raw frames to ~22 KB — small enough to serve from the CDN like
 data/contributions.json.
 
+Frames are used verbatim — including the artist's baked-in base + ground shadow,
+which is already drawn correctly per pose (small and low for the airborne jump
+frame), so the widget needs no separate shadow and casts none. Nothing is keyed
+or erased, so no tiger pixels are ever lost.
+
 Source: the frames live as base64 PNGs in the approved demo HTML. Pass its path:
     python3 scripts/build-tiger-sprite.py path/to/demo.html
 The frame grid it prints (cell size, per-mode start/count) must match the
 constants in widget.js.
 """
 import sys, re, io, os, json, base64
-from collections import deque
 import numpy as np
 from PIL import Image
 
@@ -30,73 +34,6 @@ GUTTER = 4                 # transparent margin around every cell — stops fram
 COLORS = 32                # palette size (incl. 1 transparent index)
 ALPHA_THRESHOLD = 128      # binary transparency cutoff
 
-def strip_shadow(im):
-    """Erase the baked-in ground shadow so the widget can cast its own.
-
-    The shadow is a near-neutral grey blob, and it is the *same tone* as the
-    tiger's cream belly/paws — so a plain colour key eats the belly. What tells
-    them apart is structure: the tiger is walled off by its dark outline, and its
-    belly always sits above the lowest solid (orange/dark) tiger pixel, while the
-    shadow is open to the background and sits below the feet. So a grey pixel is
-    shadow only if it is EITHER reachable from the image border (flood through
-    transparent + grey, blocked by solid tiger) OR below the lowest solid tiger
-    pixel in its column. The enclosed belly is neither, so it survives."""
-    a = np.array(im)
-    rgb = a[:, :, :3].astype(int); al = a[:, :, 3]
-    sat = rgb.max(2) - rgb.min(2); light = rgb.mean(2)
-    solid = ((sat > 26) | (light < 120)) & (al >= 60)     # real tiger: orange or outline
-    shadowy = (sat <= 18) & (light >= 150) & (light <= 244) & (al >= 60)
-    passable = ((al < 60) | shadowy) & ~solid
-    H, W = al.shape
-    seen = np.zeros((H, W), bool); dq = deque()
-    for x in range(W):
-        for y in (0, H - 1):
-            if passable[y, x] and not seen[y, x]: seen[y, x] = True; dq.append((y, x))
-    for y in range(H):
-        for x in (0, W - 1):
-            if passable[y, x] and not seen[y, x]: seen[y, x] = True; dq.append((y, x))
-    while dq:
-        y, x = dq.popleft()
-        for dy in (-1, 0, 1):
-            for dx in (-1, 0, 1):
-                ny, nx = y + dy, x + dx
-                if 0 <= ny < H and 0 <= nx < W and passable[ny, nx] and not seen[ny, nx]:
-                    seen[ny, nx] = True; dq.append((ny, nx))
-    below = np.zeros((H, W), bool)
-    for x in range(W):
-        ys = np.where(solid[:, x])[0]
-        if len(ys): below[ys.max() + 1:, x] = True
-    a[shadowy & (seen | below), 3] = 0
-    return Image.fromarray(a, "RGBA")
-
-def keep_largest(im):
-    """Drop stray islands (leftover shadow specks) by keeping only the tiger —
-    the single largest 8-connected blob of opaque pixels."""
-    a = np.array(im)
-    mask = a[:, :, 3] >= 40
-    H, Wd = mask.shape
-    seen = np.zeros_like(mask)
-    best = None; best_n = 0
-    for sy in range(H):
-        for sx in range(Wd):
-            if not mask[sy, sx] or seen[sy, sx]:
-                continue
-            stack = [(sy, sx)]; seen[sy, sx] = True; comp = []
-            while stack:
-                y, x = stack.pop(); comp.append((y, x))
-                for dy in (-1, 0, 1):
-                    for dx in (-1, 0, 1):
-                        ny, nx = y + dy, x + dx
-                        if 0 <= ny < H and 0 <= nx < Wd and mask[ny, nx] and not seen[ny, nx]:
-                            seen[ny, nx] = True; stack.append((ny, nx))
-            if len(comp) > best_n:
-                best_n = len(comp); best = comp
-    keep = np.zeros_like(mask)
-    for y, x in best:
-        keep[y, x] = True
-    a[~keep, 3] = 0
-    return Image.fromarray(a, "RGBA")
-
 def load_frames(html_path):
     html = open(html_path).read()
     obj = json.loads(re.search(r'const frames = (\{.*?\});', html, re.S).group(1))
@@ -105,7 +42,7 @@ def load_frames(html_path):
         meta[name] = {"start": idx, "count": len(obj[key])}
         for uri in obj[key]:
             im = Image.open(io.BytesIO(base64.b64decode(uri.split(",", 1)[1]))).convert("RGBA")
-            frames.append(keep_largest(strip_shadow(im)).crop(CROP))
+            frames.append(im.crop(CROP))     # verbatim — keep the baked base + shadow
             idx += 1
     return frames, meta
 
