@@ -42,7 +42,7 @@
   .gitwidget{max-width:680px;font-family:var(--sans,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif)}
   .gitwidget .gw-label{font-family:var(--mono,ui-monospace,Menlo,Consolas,monospace);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#6a6a72);margin-bottom:1.1rem;display:inline-flex;align-items:center;gap:.6rem}
   .gitwidget .gw-track{position:relative;height:24px}
-  .gitwidget .gw-creature{position:absolute;left:0;bottom:0;width:78px;height:45px;
+  .gitwidget .gw-creature{position:absolute;left:0;bottom:-4px;width:80px;height:48px;
     background-repeat:no-repeat;background-position:0 0;image-rendering:auto;
     will-change:transform;pointer-events:none;opacity:0;transition:opacity .3s}
   .gitwidget .gw-creature.ready{opacity:1}
@@ -109,20 +109,23 @@
   // small shadow low on the ground; no separate shadow and no vertical transform
   // are needed). We step through frames on the widget's own behaviour loop — the
   // tiger wanders, chases the cursor (walk → run when it's far), leaps on click,
-  // and fidgets (tail swish / sit) when left alone. Right-facing frames only;
-  // heading left is a CSS scaleX(-1) mirror. See scripts/build-tiger-sprite.py.
+  // and fidgets (look around / tail swish / sit) when left alone. Frames are
+  // direction-native (real left- and right-facing art, no mirror) and every frame
+  // is feet-aligned to one baseline. See scripts/build-tiger-sprite.py.
   function creature(){
     var el=$('.gw-creature'), track=$('.gw-track');
-    var FW=78, FH=45, NF=19;                        // display frame size + count (incl. gutter)
-    var MODES={ idle:{s:0,n:3,ms:420}, walk:{s:3,n:4,ms:150}, run:{s:7,n:4,ms:85},
-                jump:{s:11,n:3,ms:170}, tail:{s:14,n:3,ms:200}, sit:{s:17,n:2,ms:620} };
+    var FW=80, FH=48, NF=30;                        // display frame size + count
+    var MODES={ walkR:{s:0,n:4,ms:130}, walkL:{s:4,n:4,ms:130},
+                runR:{s:8,n:4,ms:80},   runL:{s:12,n:4,ms:80},
+                jumpR:{s:16,n:3},       jumpL:{s:19,n:3},
+                idle:{s:22,n:3,ms:460}, tail:{s:25,n:3,ms:200}, sit:{s:28,n:2,ms:620} };
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var x=40,tx=40,hop=0,hv=0,dir=1,mv=false,cur=false,nw=3000,idleAt=0,mode='',frame=0,last=0,SPW=FW;
     var tw=function(){return Math.max(0, track.clientWidth-SPW);};
     function show(f){ frame=f; el.style.backgroundPosition=(-f*FW)+'px 0'; }
-    // No translateY: the jump's height (and its grounded shadow) is baked into
-    // the frame art, so lifting the element would double it and float the shadow.
-    function place(){ el.style.transform='translateX('+x+'px) scaleX('+dir+')'; }
+    // No scaleX (frames are direction-native) and no translateY (the jump height
+    // and its grounded shadow are baked into the art).
+    function place(){ el.style.transform='translateX('+x+'px)'; }
 
     MOUNT.addEventListener('mousemove', function(e){ if(reduce) return; var r=track.getBoundingClientRect();
       tx=Math.max(0,Math.min(tw(), e.clientX-r.left-SPW/2)); cur=true; });
@@ -135,19 +138,17 @@
       if(adx>0.6){ x+=dx*0.08; mv=true; dir=dx<0?-1:1; } else mv=false;
       if(hop>0||hv>0){ hop+=hv; hv-=0.45; if(hop<0){hop=0;hv=0;} }
       // pick the pose from the current state; fidget once the tiger has settled
-      var want;
-      if(hop>0.3) want='jump';
-      else if(mv) want=fast?'run':'walk';
+      var d=dir<0?'L':'R', want;
+      if(hop>0.3) want='jump'+d;
+      else if(mv) want=(fast?'run':'walk')+d;
       else { if(!idleAt) idleAt=now; var idle=now-idleAt;
-        want = idle>6500 ? 'sit' : (idle>1400 && (now%4200)<720) ? 'tail' : 'idle'; }
+        want = idle>6500 ? 'sit' : (idle>1500 && (now%4400)<760) ? 'tail' : 'idle'; }
       if(mv||hop>0.3) idleAt=0;
-      if(want==='jump'){
-        // drive the jump frame from the actual arc, not a timer, so the
-        // crouch→stretch→gather→land sequence always reads (11 crouch, 12
-        // airborne stretch, 13 gather-to-land). Otherwise the landing frame
-        // gets skipped right before touchdown.
-        mode='jump';
-        var jf = hv>0 ? (hop<5?11:12) : (hop>5?13:11);
+      if(want==='jumpR'||want==='jumpL'){
+        // drive the jump frame from the arc (crouch → airborne stretch → gather →
+        // land) so the landing frame never gets skipped before touchdown.
+        mode=want; var s=MODES[mode].s;
+        var jf = hv>0 ? (hop<5?s:s+1) : (hop>5?s+2:s);
         if(jf!==frame) show(jf);
       } else if(want!==mode){ mode=want; var m=MODES[mode]; show(m.s); last=now; }
       else { var m2=MODES[mode]; if(now-last>m2.ms){ var f=frame+1; if(f>=m2.s+m2.n) f=m2.s; show(f); last=now; } }
@@ -158,7 +159,7 @@
     function start(){
       el.style.backgroundSize=(NF*FW)+'px '+FH+'px';
       el.className='gw-creature ready';
-      show(0); place();
+      show(MODES.idle.s); place();
       if(reduce){ mode='idle'; return; }      // hold a single frame, no motion
       requestAnimationFrame(tick);
     }
