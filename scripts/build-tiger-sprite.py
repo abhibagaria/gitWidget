@@ -26,6 +26,52 @@ CELL_H = 64                # sheet cell height in px
 COLORS = 32                # palette size (incl. 1 transparent index)
 ALPHA_THRESHOLD = 128      # binary transparency cutoff
 
+def strip_shadow(im):
+    """Erase the baked-in ground shadow so the widget can cast its own.
+
+    The shadow is a near-neutral grey ellipse (R≈G≈B, mid lightness) sitting in
+    the bottom band of the frame. The tiger's feet are dark/orange (saturated)
+    and its paws are near-white, so keying neutral, mid-light pixels in the lower
+    band removes the shadow without touching the tiger."""
+    a = np.array(im)
+    rgb = a[:, :, :3].astype(int)
+    mx, mn = rgb.max(2), rgb.min(2)
+    neutral = (mx - mn) <= 22
+    light = rgb.mean(2)
+    midlight = (light >= 140) & (light <= 243)
+    band = np.zeros(a.shape[:2], bool)
+    band[int(a.shape[0] * 0.70):, :] = True     # lower ~30% of the frame
+    a[neutral & midlight & band & (a[:, :, 3] > 0), 3] = 0
+    return Image.fromarray(a, "RGBA")
+
+def keep_largest(im):
+    """Drop stray islands (leftover shadow specks) by keeping only the tiger —
+    the single largest 8-connected blob of opaque pixels."""
+    a = np.array(im)
+    mask = a[:, :, 3] >= 40
+    H, Wd = mask.shape
+    seen = np.zeros_like(mask)
+    best = None; best_n = 0
+    for sy in range(H):
+        for sx in range(Wd):
+            if not mask[sy, sx] or seen[sy, sx]:
+                continue
+            stack = [(sy, sx)]; seen[sy, sx] = True; comp = []
+            while stack:
+                y, x = stack.pop(); comp.append((y, x))
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        ny, nx = y + dy, x + dx
+                        if 0 <= ny < H and 0 <= nx < Wd and mask[ny, nx] and not seen[ny, nx]:
+                            seen[ny, nx] = True; stack.append((ny, nx))
+            if len(comp) > best_n:
+                best_n = len(comp); best = comp
+    keep = np.zeros_like(mask)
+    for y, x in best:
+        keep[y, x] = True
+    a[~keep, 3] = 0
+    return Image.fromarray(a, "RGBA")
+
 def load_frames(html_path):
     html = open(html_path).read()
     obj = json.loads(re.search(r'const frames = (\{.*?\});', html, re.S).group(1))
@@ -34,7 +80,7 @@ def load_frames(html_path):
         meta[name] = {"start": idx, "count": len(obj[key])}
         for uri in obj[key]:
             im = Image.open(io.BytesIO(base64.b64decode(uri.split(",", 1)[1]))).convert("RGBA")
-            frames.append(im.crop(CROP))
+            frames.append(keep_largest(strip_shadow(im)).crop(CROP))
             idx += 1
     return frames, meta
 
