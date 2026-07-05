@@ -15,6 +15,7 @@ The frame grid it prints (cell size, per-mode start/count) must match the
 constants in widget.js.
 """
 import sys, re, io, os, json, base64
+from collections import deque
 import numpy as np
 from PIL import Image
 
@@ -32,19 +33,40 @@ ALPHA_THRESHOLD = 128      # binary transparency cutoff
 def strip_shadow(im):
     """Erase the baked-in ground shadow so the widget can cast its own.
 
-    The shadow is a near-neutral grey ellipse (R≈G≈B, mid lightness) sitting in
-    the bottom band of the frame. The tiger's feet are dark/orange (saturated)
-    and its paws are near-white, so keying neutral, mid-light pixels in the lower
-    band removes the shadow without touching the tiger."""
+    The shadow is a near-neutral grey blob, and it is the *same tone* as the
+    tiger's cream belly/paws — so a plain colour key eats the belly. What tells
+    them apart is structure: the tiger is walled off by its dark outline, and its
+    belly always sits above the lowest solid (orange/dark) tiger pixel, while the
+    shadow is open to the background and sits below the feet. So a grey pixel is
+    shadow only if it is EITHER reachable from the image border (flood through
+    transparent + grey, blocked by solid tiger) OR below the lowest solid tiger
+    pixel in its column. The enclosed belly is neither, so it survives."""
     a = np.array(im)
-    rgb = a[:, :, :3].astype(int)
-    mx, mn = rgb.max(2), rgb.min(2)
-    neutral = (mx - mn) <= 22
-    light = rgb.mean(2)
-    midlight = (light >= 140) & (light <= 243)
-    band = np.zeros(a.shape[:2], bool)
-    band[int(a.shape[0] * 0.70):, :] = True     # lower ~30% of the frame
-    a[neutral & midlight & band & (a[:, :, 3] > 0), 3] = 0
+    rgb = a[:, :, :3].astype(int); al = a[:, :, 3]
+    sat = rgb.max(2) - rgb.min(2); light = rgb.mean(2)
+    solid = ((sat > 26) | (light < 120)) & (al >= 60)     # real tiger: orange or outline
+    shadowy = (sat <= 18) & (light >= 150) & (light <= 244) & (al >= 60)
+    passable = ((al < 60) | shadowy) & ~solid
+    H, W = al.shape
+    seen = np.zeros((H, W), bool); dq = deque()
+    for x in range(W):
+        for y in (0, H - 1):
+            if passable[y, x] and not seen[y, x]: seen[y, x] = True; dq.append((y, x))
+    for y in range(H):
+        for x in (0, W - 1):
+            if passable[y, x] and not seen[y, x]: seen[y, x] = True; dq.append((y, x))
+    while dq:
+        y, x = dq.popleft()
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                ny, nx = y + dy, x + dx
+                if 0 <= ny < H and 0 <= nx < W and passable[ny, nx] and not seen[ny, nx]:
+                    seen[ny, nx] = True; dq.append((ny, nx))
+    below = np.zeros((H, W), bool)
+    for x in range(W):
+        ys = np.where(solid[:, x])[0]
+        if len(ys): below[ys.max() + 1:, x] = True
+    a[shadowy & (seen | below), 3] = 0
     return Image.fromarray(a, "RGBA")
 
 def keep_largest(im):
